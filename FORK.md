@@ -68,8 +68,8 @@ the ormolu fix tool off.
     character shift makes of it (from the alternate keys: alt and shift and
     `,` is meta-`<`, ctrl and shift and `-` is ctrl-`_`), and a key with
     ctrl or alt on a layout other than the US one as the US layout's key in
-    its place (ctrl and Cyrillic `с` is ctrl-c), as a terminal without the
-    protocol sends them. A key with super or hyper is ignored, as is a
+    its place (ctrl and Cyrillic `с` is ctrl-c, alt and shift and `б` is
+    meta-`<`), as a terminal without the protocol sends them. A key with super or hyper is ignored, as is a
     control sequence that isn't a key (a reply from the terminal) or one
     haskeline has no key for. When the input ends partway through a control
     sequence (it can come in two reads, over ssh say), haskeline waits up

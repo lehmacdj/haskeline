@@ -150,13 +150,16 @@ csiKey params final
 -- keys of a key and its modifiers. With ctrl or alt, a key of a layout
 -- other than the US one (its codepoint isn't ASCII) is read as the US
 -- layout's key in its place, as a terminal without the protocol does, so
--- that ctrl-c and the other control keys work on any layout. With shift,
--- the key is read as the character shift makes of it, without shift (so
--- that alt and shift and @,@ is meta-@<@).
+-- that ctrl-c and the other control keys work on any layout; with shift
+-- too, as the character shift makes of that key on the US layout. With
+-- shift, the key is read as the character shift makes of it, without
+-- shift (so that alt and shift and @,@ is meta-@<@).
 alternateKey :: Int -> [Maybe Int] -> (Int, Int)
 alternateKey bits alternates = case alternates of
     Just cp : rest
-        | ctrlOrAlt, cp >= 128, Just b <- at 1 rest -> (b, bits)
+        | ctrlOrAlt, cp >= 128, Just b <- at 1 rest -> case lookup b usShifted of
+            Just s | shift -> (s, clearBit bits 0)
+            _ -> (b, bits)
         | shift, Just s <- at 0 rest -> (s, clearBit bits 0)
         | otherwise -> (cp, bits)
     _ -> (0, bits)
@@ -166,6 +169,13 @@ alternateKey bits alternates = case alternates of
     at i xs = case drop i xs of
         x:_ -> x
         [] -> Nothing
+
+-- | What shift makes of the US layout's keys other than letters.
+usShifted :: [(Int, Int)]
+usShifted = pairs "`~1!2@3#4$5%6^7&8*9(0)-_=+[{]}\\|;:'\",<.>/?"
+  where
+    pairs (a:b:rest) = (fromEnum a, fromEnum b) : pairs rest
+    pairs _ = []
 
 splitOn :: Char -> String -> [String]
 splitOn c s = case break (== c) s of

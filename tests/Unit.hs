@@ -655,6 +655,15 @@ keyboardProtocolTests cwd i = "kitty keyboard protocol" ~:
                 [ prompt 0, utf8 "one", end <> output 0 (utf8 "one") <> prompt 1
                 , utf8 "two", end <> output 1 (utf8 "two") <> prompt 2
                 , utf8 "one" ]
+    , "alt and shift and a key of another layout is meta and the US layout's\
+      \ shifted key (M-< from alt and shift and Cyrillic б)"
+        ~: test $ do
+            B.writeFile "myhist" B.empty
+            assertInvocation i
+                ["one", "\n", "two", "\n", utf8 "\ESC[1073:1041:44;4u"]
+                [ prompt 0, utf8 "one", end <> output 0 (utf8 "one") <> prompt 1
+                , utf8 "two", end <> output 1 (utf8 "two") <> prompt 2
+                , utf8 "one" ]
     , "without the alternate keys, ctrl and shift and - is a key of its own"
         ~: testI i ["ab", utf8 "\ESC[45;6u", "\n"]
         [ prompt 0, utf8 "ab", bell

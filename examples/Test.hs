@@ -2,6 +2,8 @@ module Main where
 
 import System.Console.Haskeline
 import System.Environment
+import Control.Concurrent
+import Control.Exception (finally)
 
 {--
 Testing the line-input functions and their interaction with ctrl-c signals.
@@ -12,6 +14,9 @@ Usage:
 ./Test password (no masking characters)
 ./Test password \*
 ./Test initial  (use initial text in the prompt)
+
+Added in this fork (see FORK.md), before the others:
+./Test forked ...  (read the lines on a thread of its own, as ge does)
 --}
 
 mySettings :: Settings IO
@@ -19,15 +24,25 @@ mySettings = defaultSettings {historyFile = Just "myhist"}
 
 main :: IO ()
 main = do
-        args <- getArgs
-        let inputFunc = case args of
+        allArgs <- getArgs
+        let (forked, args) = flag "forked" allArgs
+            run = runInputT mySettings $ withInterrupt
+                $ loop (inputFuncOf args) 0
+        if forked
+            then do
+                done <- newEmptyMVar
+                _ <- forkIO (run `finally` putMVar done ())
+                takeMVar done
+            else run
+    where
+        flag f (a:as) | a == f = (True, as)
+        flag _ as = (False, as)
+        inputFuncOf args = case args of
                 ["chars"] -> fmap (fmap (\c -> [c])) . getInputChar
                 ["password"] -> getPassword Nothing
                 ["password", [c]] -> getPassword (Just c)
                 ["initial"] -> flip getInputLineWithInitial ("left ", "right")
                 _ -> getInputLine
-        runInputT mySettings $ withInterrupt $ loop inputFunc 0
-    where
         loop :: (String -> InputT IO (Maybe String)) -> Int -> InputT IO ()
         loop inputFunc n = do
             minput <-  handleInterrupt (return (Just "Caught interrupted"))

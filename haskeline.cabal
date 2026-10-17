@@ -174,3 +174,5 @@ Executable haskeline-examples-Test
     Default-Language: Haskell2010
     hs-source-dirs: examples
     Main-Is: Test.hs
+    -- as ge is: a signal can reach another thread of the program
+    ghc-options: -threaded

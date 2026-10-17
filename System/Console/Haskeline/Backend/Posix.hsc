@@ -312,7 +312,13 @@ raiseSignalOfKeys h ks
             signalOf k = plainControl k >>= flip lookup signals
         case mapMaybe signalOf ks of
             sig:_ | terminalMode KeyboardInterrupts attrs -> do
-                withoutProtocol (signalForeground (Fd fd) sig)
+                withoutProtocol $ do
+                    signalForeground (Fd fd) sig
+                    -- another thread of the program can go on for a moment
+                    -- before the stop: turning the protocol back on then
+                    -- would give it to the shell. Stopped, the program
+                    -- turns it back on once continued.
+                    when (sig == keyboardStop) $ threadDelay 100000
                 return Signalled
             _ -> return (Keys ks)
   where

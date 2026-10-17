@@ -81,6 +81,10 @@ the ormolu fix tool off.
     sent, and so while the program is stopped (ctrl-z) or if it ends of
     it, and while Ctrl-G's editor runs, so that the shell and the editor
     get keys as they expect.
+    After ctrl-z haskeline waits a moment (100ms) before it turns the
+    protocol back on: another thread of the program (ge reads its lines on
+    one) can run on for a moment before the stop, and would turn it on for
+    the shell. Stopped, the program turns it on once continued.
   - A program that ends without haskeline's cleanup (killed, or crashed)
     leaves the terminal using the protocol; return, tab, backspace and text
     still work, and `printf '\e[<u'` (or `reset`) ends it.
@@ -122,6 +126,8 @@ tests failed in Vi mode), `RunTTY`'s `pause` sets how long to wait for
 output after each input (the Ctrl-G tests run a shell script as the
 editor), and the output of an input is read until there is no more for
 that long (the program may write it in several writes).
+`haskeline-examples-Test` is built `-threaded`, as ge is, and with the
+argument `forked` reads its lines on a thread of its own, as ge does.
 
 The third "history encoding" test, which reads the history in latin-1, is
 skipped on macOS: GHC's locale encoding there is UTF-8 whatever `LANG`

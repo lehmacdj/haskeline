@@ -361,6 +361,10 @@ forkTests cwd i = "fork" ~: test
     , keyboardProtocolTests cwd (setUTF8 i)
     ]
 
+-- The test program reading its lines on a thread of its own, as ge does.
+forked :: Invocation -> Invocation
+forked i = i { progArgs = "forked" : progArgs i }
+
 shiftReturn :: B.ByteString
 shiftReturn = utf8 "\ESC[13;2u"
 
@@ -590,6 +594,9 @@ keyboardProtocolTests cwd i = "kitty keyboard protocol" ~:
         , end <> output 0 (utf8 "xabc") <> prompt 1 ]
     , "ctrl-z stops the program with the protocol off"
         ~: testI i ["ab", utf8 "\ESC[122;5ucd", "e\n"]
+        [ prompt 0, utf8 "ab", popProtocol, B.empty ]
+    , "ctrl-z: the protocol stays off when lines are read on another thread"
+        ~: testI (forked i) ["ab", utf8 "\ESC[122;5ucd", "e\n"]
         [ prompt 0, utf8 "ab", popProtocol, B.empty ]
     , "keypad enter" ~: testI i ["ab", utf8 "\ESC[57414u"]
         [ prompt 0, utf8 "ab", end <> output 0 (utf8 "ab") <> prompt 1 ]

@@ -17,6 +17,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as E
 import Data.Monoid ((<>))
 import System.Exit (exitFailure)
+import System.Info (os)
 import System.Process (readProcess)
 import System.Posix.Directory (getWorkingDirectory)
 import Control.Concurrent (threadDelay)
@@ -147,9 +148,14 @@ historyTests i =  "history encoding" ~:
         -- NB: this is decoded by either utf8-string or base;
         -- either way they produce \65533 instead of '?'.
         [prompt 0, utf8 "abcα\65533x\65533x\65533" ]
-    -- In latin-1: read errors as utf-8 '\65533', display as '?'
-    , latin1TestInvalidHist i  [ "\ESC[A" ]
+    ] ++
+    -- In latin-1: read errors as utf-8 '\65533', display as '?'.
+    -- Skipped on macOS (vendored copy, see VENDORED.md): GHC's locale
+    -- encoding there is UTF-8 whatever LANG says, so the test can't run in
+    -- latin-1 (it failed before the copy was changed).
+    [ latin1TestInvalidHist i  [ "\ESC[A" ]
         [prompt 0, utf8 "abc??x?x?" ]
+    | os /= "darwin"
     ]
 
 invalidHist :: BC.ByteString

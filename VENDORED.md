@@ -99,6 +99,8 @@ Ctrl-G tests run a shell script as the editor), and the output of an input
 is read until there is no more for that long (the program may write it in
 several writes).
 
-Two upstream tests fail on macOS, before the patch and after it: "tab
-completion" needs `tests/dummy-μασ/`, which the Hackage tarball does not
-have, and "history encoding" 2 needs the `en_US.ISO8859-1` locale.
+Two upstream tests failed before the patch. "Tab completion" needs
+`tests/dummy-μασ/` (with the files `ςερτ` and `bar`), which the Hackage
+tarball does not have; the copy has it now. The third "history encoding"
+test, which reads the history in latin-1, is skipped on macOS: GHC's locale
+encoding there is UTF-8 whatever `LANG` says, so it can't pass.

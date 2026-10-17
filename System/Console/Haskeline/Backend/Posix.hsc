@@ -318,7 +318,9 @@ raiseSignalOfKeys h ks
                     -- another thread of the program can go on for a moment
                     -- before the stop: turning the protocol back on then
                     -- would give it to the shell. Stopped, the program
-                    -- turns it back on once continued.
+                    -- turns it back on once continued. (An event that ends
+                    -- this reader meanwhile, a resize say, cuts the wait
+                    -- short.)
                     when (sig == keyboardStop) $ threadDelay 100000
                 return Signalled
             _ -> return (Keys ks)

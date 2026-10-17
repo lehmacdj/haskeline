@@ -541,8 +541,16 @@ editorTests cwd i = "ctrl-g opens the line in EDITOR" ~:
         [ prompt 0, utf8 "one", utf8 "\ESC[3D" <> clearEOL, utf8 "two"
         , aroundEditor <> bell, utf8 "\ESC[3Done"
         , end <> output 0 (utf8 "one") <> prompt 1 ]
+    , "vi: a failed editor leaves nothing to undo"
+        ~: testI (withHome cwd "vi" (editor "fail"))
+            ["one", "\ESC", "dd", "itwo", "\ESC", ctrlG, "u", "\n"]
+        -- undo goes back to the line before dd
+        [ prompt 0, utf8 "one", utf8 "\b", utf8 "\ESC[2D" <> clearEOL
+        , utf8 "two", utf8 "\b", aroundEditor <> bell, utf8 "\ESC[2Done\b"
+        , end <> output 0 (utf8 "one") <> prompt 1 ]
     , "ctrl-c after ctrl-g, with a handler the GHC runtime doesn't know"
-        ~: testI (unheld (editor "append-args --x")) ["one", ctrlG, utf8 "\ESC[99;5u"]
+        ~: testI (unheld (editor "append-args --x"))
+            ["one", ctrlG, utf8 "\ESC[99;5u"]
         [ prompt 0, utf8 "one", aroundEditor <> utf8 " --x"
         , aroundSignal <> end <> output 0 (utf8 "Caught interrupted")
             <> prompt 1 ]

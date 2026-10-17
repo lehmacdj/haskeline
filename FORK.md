@@ -128,6 +128,8 @@ editor), and the output of an input is read until there is no more for
 that long (the program may write it in several writes).
 `haskeline-examples-Test` is built `-threaded`, as ge is, and with the
 argument `forked` reads its lines on a thread of its own, as ge does.
+With `unheld` it catches ctrl-c with a handler that the GHC runtime
+doesn't know, as ge does, instead of with `withInterrupt`.
 
 The third "history encoding" test, which reads the history in latin-1, is
 skipped on macOS: GHC's locale encoding there is UTF-8 whatever `LANG`

@@ -365,6 +365,11 @@ forkTests cwd i = "fork" ~: test
 forked :: Invocation -> Invocation
 forked i = i { progArgs = "forked" : progArgs i }
 
+-- The test program catching ctrl-c with a handler the GHC runtime doesn't
+-- know, as ge does.
+unheld :: Invocation -> Invocation
+unheld i = i { progArgs = "unheld" : progArgs i }
+
 shiftReturn :: B.ByteString
 shiftReturn = utf8 "\ESC[13;2u"
 
@@ -520,6 +525,11 @@ editorTests cwd i = "ctrl-g opens the line in EDITOR" ~:
             ["one", ctrlG, "\n"]
         [ prompt 0, utf8 "one", aroundEditor <> utf8 " --visual"
         , end <> output 0 (utf8 "one --visual") <> prompt 1 ]
+    , "ctrl-c after ctrl-g, with a handler the GHC runtime doesn't know"
+        ~: testI (unheld (editor "append-args --x")) ["one", ctrlG, utf8 "\ESC[99;5u"]
+        [ prompt 0, utf8 "one", aroundEditor <> utf8 " --x"
+        , aroundSignal <> end <> output 0 (utf8 "Caught interrupted")
+            <> prompt 1 ]
     , "undo goes back to the line before"
         ~: testI (editor "append-line") ["one", ctrlG, raw [31], "\n"]
         [ prompt 0, utf8 "one", aroundEditor <> newline <> utf8 "added"

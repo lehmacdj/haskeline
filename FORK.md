@@ -93,7 +93,9 @@ the ormolu fix tool off.
   spaces are only drawn, they aren't in the text; a row that wraps isn't
   indented). The cursor is moved to where drawing the line up to it from
   the prompt would leave it, instead of by a number of cells, which a
-  newline makes wrong. `Backend/Terminfo.hs`, `RunCommand.hs`
+  newline makes wrong. A newline after a row that the text fills exactly
+  (which already went on to the next row) doesn't leave an empty row.
+  `Backend/Terminfo.hs`, `RunCommand.hs`
   (`indentLines`). The dumb terminal backend (`TERM=dumb`) is not
   changed and draws a newline as it is.
 - Up and down (and ctrl-p and ctrl-n in Emacs mode, j and k in Vi command

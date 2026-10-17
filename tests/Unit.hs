@@ -443,6 +443,11 @@ multilineTests cwd i = "multiline" ~:
         [ smkx <> prompt' 0, utf8 "abc"
         , utf8 "\b" <> nl <> rmkx <> output 0 (utf8 "abc") <> smkx
             <> prompt' 1 ]
+    , "a newline after a row filled exactly leaves no empty row"
+        ~: testI i [B.replicate 78 120, shiftReturn, "b", "\n"]
+        -- the row wraps, and the newline then only indents
+        [ prompt 0, B.replicate 78 120 <> wrap, utf8 "  ", utf8 "b"
+        , end <> output 0 (B.replicate 78 120 <> utf8 "\nb") <> prompt 1 ]
     , "vi: k on the first line goes back in history" ~: test $ do
         B.writeFile "myhist" B.empty
         assertInvocation vi

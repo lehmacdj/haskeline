@@ -243,8 +243,27 @@ moveToPos p = do
 advanceText :: Int -> TermPos -> [Grapheme] -> TermPos
 advanceText w p gs = case break isNewline gs of
     (seg, []) -> advanceSegment w p seg
-    (seg, _:rest) -> let r = termRow (advanceSegment w p seg)
-                     in advanceText w TermPos {termRow=r+1, termCol=0} rest
+    (seg, _:rest) -> let p' = advanceSegment w p seg
+                     in advanceText w (afterNewline (hasWidth seg) p') rest
+
+-- | Where a newline takes the cursor: to the start of the next row, unless
+-- the text before it filled its row exactly and so already went on to the
+-- next ('rowFilled': the cursor is at the start of a row and there is text
+-- before the newline on its row, not only control sequences of a prompt).
+afterNewline :: Bool -> TermPos -> TermPos
+afterNewline textBefore p
+    | rowFilled textBefore p = p
+    | otherwise = TermPos {termRow = termRow p + 1, termCol = 0}
+
+rowFilled :: Bool -> TermPos -> Bool
+rowFilled textBefore p = textBefore && termCol p == 0
+
+-- | Whether there is text after the last newline of the given text.
+textOnLastRow :: [Grapheme] -> Bool
+textOnLastRow = hasWidth . reverse . takeWhile (not . isNewline) . reverse
+
+hasWidth :: [Grapheme] -> Bool
+hasWidth gs = gsWidth gs > 0
 
 advanceSegment :: Int -> TermPos -> [Grapheme] -> TermPos
 advanceSegment _ p [] = p
@@ -269,17 +288,23 @@ isNewline g = baseChar g == '\n'
 
 -- | Print text from the cursor; a newline in it ends the row: the rest of
 -- the row is cleared and the text goes on at the start of the next one.
-printText :: [Grapheme] -> ActionM ()
-printText gs = case break isNewline gs of
+-- The flag says whether there is text before the cursor on its row (in the
+-- line as drawn), so that a newline after a row that it filled exactly
+-- doesn't leave an empty row (see 'afterNewline').
+printText :: Bool -> [Grapheme] -> ActionM ()
+printText textBefore gs = case break isNewline gs of
     (seg, []) -> printSegment seg
     (seg, _:rest) -> do
         printSegment seg
-        TermPos {termRow=r, termCol=c} <- get
-        modify $ setRow r c
-        output $ clearToLineEnd <#> cr <#> nl
-        put TermPos {termRow=r+1, termCol=0}
-        modify $ setRow (r+1) 0
-        printText rest
+        p@TermPos {termRow=r, termCol=c} <- get
+        if rowFilled (textBefore || hasWidth seg) p
+            then modify $ setRow r 0
+            else do
+                modify $ setRow r c
+                output $ clearToLineEnd <#> cr <#> nl
+                put TermPos {termRow=r+1, termCol=0}
+                modify $ setRow (r+1) 0
+        printText False rest
 
 printSegment :: [Grapheme] -> ActionM ()
 printSegment [] = return ()
@@ -315,10 +340,11 @@ drawLineDiffT (xs1,ys1) (xs2,ys2) = case matchInit xs1 xs2 of
     ([],xs2')   | ys1 == xs2' ++ ys2    -> posAfter xs2 >>= moveToPos
     (_,xs2')                            -> do
         oldRS <- get
-        posAfter (take (length xs2 - length xs2') xs2) >>= moveToPos
-        printText xs2'
+        let same = take (length xs2 - length xs2') xs2
+        posAfter same >>= moveToPos
+        printText (textOnLastRow same) xs2'
         p <- get
-        printText ys2
+        printText (textOnLastRow xs2) ys2
         clearDeadText oldRS
         moveToPos p
 

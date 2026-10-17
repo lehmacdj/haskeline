@@ -497,6 +497,12 @@ editorTests cwd i = "ctrl-g opens the line in EDITOR" ~:
         [ prompt 0, utf8 "one", popProtocol
         , utf8 "^C" <> pushProtocol <> bell
         , end <> output 0 (utf8 "one") <> prompt 1 ]
+    , "VISUAL before EDITOR"
+        ~: testI (setEnv "VISUAL" (editors ++ "/append-args --visual")
+                    (editor "fail"))
+            ["one", ctrlG, "\n"]
+        [ prompt 0, utf8 "one", aroundEditor <> utf8 " --visual"
+        , end <> output 0 (utf8 "one --visual") <> prompt 1 ]
     , "an editor that fails leaves the line and rings the bell"
         ~: testI (editor "fail") ["one", ctrlG, "\n"]
         [ prompt 0, utf8 "one", aroundEditor <> bell

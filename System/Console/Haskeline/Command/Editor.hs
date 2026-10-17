@@ -22,10 +22,11 @@ import Foreign.Marshal.Alloc (allocaBytes)
 import Foreign.Ptr (Ptr)
 #endif
 
--- | Open the line in the editor @EDITOR@ (@vim@ when it is not set) and make
--- what the editor saved the line, with the cursor at its end. The newlines
--- at the end are dropped and the others stay, since a line can have newlines
--- in it. When the editor fails the line stays as it was and the bell rings.
+-- | Open the line in the editor @VISUAL@, or @EDITOR@ (@vim@ when neither is
+-- set), and make what the editor saved the line, with the cursor at its
+-- end. The newlines at the end are dropped and the others stay, since a line
+-- can have newlines in it. When the editor fails the line stays as it was
+-- and the bell rings.
 editInEditor :: (MonadIO m, Save s) => Command m s s
 editInEditor s = do
     edited <- CmdM (Result <$> liftIO (runEditorOn (toResult (save s))))
@@ -64,13 +65,13 @@ readUtf8 path = withFile path ReadMode $ \h -> do
 -- end has failed.
 runEditor :: FilePath -> IO ExitCode
 runEditor path = do
-    variable <- lookupEnv "EDITOR"
-    let editor = case variable of
-            Just e | not (all isSpace e) -> e
-            _ -> "vim"
+    editor <- maybe "vim" id . firstSet <$> mapM lookupEnv ["VISUAL", "EDITOR"]
     holdingInterrupts $ withCreateProcess (editorProcess editor)
         $ \_ _ _ -> waitForProcess
   where
+    firstSet vars = case [e | Just e <- vars, not (all isSpace e)] of
+        e:_ -> Just e
+        [] -> Nothing
 #ifdef MINGW
     editorProcess editor = shell (editor ++ " \"" ++ path ++ "\"")
 #else

@@ -16,10 +16,10 @@ the ormolu fix tool off.
 ## The changes
 
 - Ctrl-G (Emacs mode, and both insert and command mode in Vi mode) opens
-  the line in `EDITOR` (`vim` when it is not set), run as a shell runs
-  `$EDITOR file`. What the editor saves becomes the line, with the cursor
-  at its end; trailing newlines are dropped and others stay. When
-  the editor fails, the line stays and the bell rings.
+  the line in `VISUAL`, or `EDITOR` (`vim` when neither is set), run as a
+  shell runs `$EDITOR file`. What the editor saves becomes the line, with
+  the cursor at its end; trailing newlines are dropped and others stay.
+  When the editor fails, the line stays and the bell rings.
   While the editor runs, ctrl-c and ctrl-\ go to the editor only (an
   editor they end has failed): the program lets SIGINT and SIGQUIT go by,
   with `sigaction` (`cbits/h_signals.c`), restoring exactly the actions it

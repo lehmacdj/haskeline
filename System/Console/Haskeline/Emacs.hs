@@ -7,6 +7,7 @@ import System.Console.Haskeline.Command
 import System.Console.Haskeline.Monads
 import System.Console.Haskeline.Key
 import System.Console.Haskeline.Command.Completion
+import System.Console.Haskeline.Command.Editor
 import System.Console.Haskeline.Command.History
 import System.Console.Haskeline.Command.Undo
 import System.Console.Haskeline.Command.KillRing
@@ -57,6 +58,7 @@ controlActions = choiceCmd
             , ctrlChar 'b' +> change goLeft
             , ctrlChar 'f' +> change goRight
             , ctrlChar 'l' +> clearScreenCmd
+            , ctrlChar 'g' +> editInEditor
             , metaChar 'f' +> change wordRight
             , metaChar 'b' +> change wordLeft
             , ctrlKey (simpleKey LeftKey) +> change wordLeft

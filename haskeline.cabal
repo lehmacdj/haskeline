@@ -93,6 +93,7 @@ Library
                 System.Console.Haskeline.Backend.WCWidth
                 System.Console.Haskeline.Command
                 System.Console.Haskeline.Command.Completion
+                System.Console.Haskeline.Command.Editor
                 System.Console.Haskeline.Command.History
                 System.Console.Haskeline.Command.KillRing
                 System.Console.Haskeline.Directory

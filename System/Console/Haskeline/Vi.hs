@@ -7,6 +7,7 @@ import System.Console.Haskeline.Command
 import System.Console.Haskeline.Monads
 import System.Console.Haskeline.Key
 import System.Console.Haskeline.Command.Completion
+import System.Console.Haskeline.Command.Editor
 import System.Console.Haskeline.Command.History
 import System.Console.Haskeline.Command.KillRing
 import System.Console.Haskeline.Command.Undo
@@ -59,6 +60,7 @@ simpleInsertions = choiceCmd
                    , simpleKey End +> change moveToEnd
                    , insertChars
                    , ctrlChar 'l' +> clearScreenCmd
+                   , ctrlChar 'g' +> editInEditor
                    , simpleKey UpKey +> historyBack
                    , simpleKey DownKey +> historyForward
                    , simpleKey SearchReverse +> searchForPrefix Reverse
@@ -120,6 +122,7 @@ simpleCmdActions = choiceCmd [
                     , simpleChar 'R'   +> replaceLoop
                     , simpleChar 'D' +> noArg >|> killAndStoreCmd (SimpleMove moveToEnd)
                     , ctrlChar 'l' +> clearScreenCmd
+                    , ctrlChar 'g' +> editInEditor
                     , simpleChar 'u' +> commandUndo
                     , ctrlChar 'r' +> commandRedo
                     -- vi-mode quirk: history is put at the start of the line.

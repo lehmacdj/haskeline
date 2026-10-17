@@ -452,6 +452,16 @@ multilineTests cwd i = "multiline" ~:
         [ smkx <> prompt' 0, utf8 "abc"
         , utf8 "\b" <> nl <> rmkx <> output 0 (utf8 "abc") <> smkx
             <> prompt' 1 ]
+    , "a row the text comes to fill exactly before a newline"
+        ~: testI i [B.replicate 77 120, shiftReturn, "b", "\ESC[A", "y", "\n"]
+        [ prompt 0, B.replicate 77 120, newline, utf8 "b"
+        , up1 <> utf8 "\ESC[3C"
+        -- the first row is full, and the next one only indented
+        , utf8 "y" <> B.replicate 76 120 <> wrap <> utf8 "  b" <> up1
+            <> utf8 "\ESC[4C"
+        , nl <> end <> output 0 (utf8 "x" <> utf8 "y" <> B.replicate 76 120
+                                 <> utf8 "\nb")
+            <> prompt 1 ]
     , "a newline after a row filled exactly leaves no empty row"
         ~: testI i [B.replicate 78 120, shiftReturn, "b", "\n"]
         -- the row wraps, and the newline then only indents
@@ -620,6 +630,18 @@ keyboardProtocolTests cwd i = "kitty keyboard protocol" ~:
         -- escape and the rest are read together, as escape
         [ prompt 0, utf8 "abc", utf8 "\b", utf8 "\ESC[C", B.empty, utf8 "\b"
         , left 2, end <> output 0 (utf8 "abc") <> prompt 1 ]
+    , "alt and a shifted key is meta and the shifted key (M-< is the first\
+      \ entry of the history)"
+        ~: test $ do
+            B.writeFile "myhist" B.empty
+            assertInvocation i ["one", "\n", "two", "\n", utf8 "\ESC[44:60;4u"]
+                [ prompt 0, utf8 "one", end <> output 0 (utf8 "one") <> prompt 1
+                , utf8 "two", end <> output 1 (utf8 "two") <> prompt 2
+                , utf8 "one" ]
+    , "without the alternate keys, ctrl and shift and - is a key of its own"
+        ~: testI i ["ab", utf8 "\ESC[45;6u", "\n"]
+        [ prompt 0, utf8 "ab", bell
+        , end <> output 0 (utf8 "ab") <> prompt 1 ]
     , "keypad enter" ~: testI i ["ab", utf8 "\ESC[57414u"]
         [ prompt 0, utf8 "ab", end <> output 0 (utf8 "ab") <> prompt 1 ]
     , "home" ~: testI i ["ab", utf8 "\ESC[H", "x", "\n"]

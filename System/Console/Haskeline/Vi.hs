@@ -138,8 +138,8 @@ simpleCmdActions = choiceCmd [
                     , simpleKey KillLine +> noArg >|> killAndStoreCmd (SimpleMove moveToStart)
                     ]
 
--- | Move to the line above or below (added to the vendored copy, see
--- VENDORED.md); as in vi the cursor goes on the last character of a line
+-- | Move to the line above or below (added in this fork, see
+-- FORK.md); as in vi the cursor goes on the last character of a line
 -- that is shorter than the column, not on the newline after it.
 viLineUpOr, viLineDownOr :: InputCmd CommandMode CommandMode
                 -> InputCmd CommandMode CommandMode

@@ -160,6 +160,6 @@ canonicalizeKey :: Key -> Key
 canonicalizeKey (Key m (KeyChar c))
     | hasControl m = Key m {hasControl = False}
                         (KeyChar (setControlBits c))
-    -- shift-return stays apart from return (vendored copy, see VENDORED.md)
+    -- shift-return stays apart from return (this fork, see FORK.md)
     | hasShift m && isPrint c = Key m {hasShift = False} (KeyChar (toUpper c))
 canonicalizeKey k = k

@@ -1,5 +1,5 @@
--- | Editing the line in an external editor (added to the vendored copy, see
--- VENDORED.md).
+-- | Editing the line in an external editor (added in this fork, see
+-- FORK.md).
 module System.Console.Haskeline.Command.Editor (editInEditor) where
 
 import System.Console.Haskeline.Command

@@ -167,8 +167,8 @@ doBefore :: Monad m => Command m s t -> KeyCommand m t u -> KeyCommand m s u
 doBefore cmd = fmap (cmd >|>)
 
 -- | Shift-return, and meta-return for terminals that can't be set up to
--- send shift-return, insert a newline (added to the vendored copy, see
--- VENDORED.md).  A terminal sends meta-return as escape and return together;
+-- send shift-return, insert a newline (added in this fork, see
+-- FORK.md).  A terminal sends meta-return as escape and return together;
 -- typed one after the other they stay two keys.
 newlineCmds :: Monad m => KeyCommand m InsertMode InsertMode
 newlineCmds = choiceCmd [k +> change (insertChar '\n') | k <- keys]

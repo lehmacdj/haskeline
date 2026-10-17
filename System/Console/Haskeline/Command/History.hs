@@ -59,8 +59,8 @@ historyBack = simpleCommand $ histUpdate prevHistory
 historyForward = simpleCommand $ reverseHist . histUpdate prevHistory
 
 -- | Move to the line above or below when the line has newlines in it, and
--- otherwise do the given command (added to the vendored copy, see
--- VENDORED.md).
+-- otherwise do the given command (added in this fork, see
+-- FORK.md).
 lineUpOr, lineDownOr :: (Monad m, Save s) => Command m s s -> Command m s s
 lineUpOr = lineMoveOr lineUp
 lineDownOr = lineMoveOr lineDown

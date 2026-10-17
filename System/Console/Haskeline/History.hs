@@ -72,8 +72,8 @@ writeHistory file = handle (\(_::IOException) -> return ())
         . writeUTF8File file
         . unlines . (escapedHeader :) . map escapeEntry . historyLines
 
--- An entry can have newlines in it (added to the vendored copy, see
--- VENDORED.md), so a file starting with this line has one entry per line
+-- An entry can have newlines in it (added in this fork, see
+-- FORK.md), so a file starting with this line has one entry per line
 -- with backslashes and newlines escaped (@\\\\@ and @\\n@); a file
 -- without it is from before, with every line an entry as it is.
 escapedHeader :: String

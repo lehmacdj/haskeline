@@ -51,8 +51,8 @@ data Prefs = Prefs { bellStyle :: !BellStyle,
                      customKeySequences :: [(Maybe String, String,Key)],
                      kittyKeyboardProtocol :: !Bool
                         -- ^ Whether to have the terminal use the kitty
-                        -- keyboard protocol while a line is read (added to
-                        -- the vendored copy, see VENDORED.md).
+                        -- keyboard protocol while a line is read (added in
+                        -- this fork, see FORK.md).
                      }
                         deriving Show
 

@@ -157,7 +157,7 @@ ansiKeys = [("\ESC[D",  simpleKey LeftKey)
             ,("\ESC[OD", ctrlKey $ simpleKey LeftKey)
             ,("\ESC[OC", ctrlKey $ simpleKey RightKey)
             -- shift-return, which terminals only tell apart from return
-            -- when set up to (added to the vendored copy, see VENDORED.md):
+            -- when set up to (added in this fork, see FORK.md):
             -- the CSI u encoding (the kitty keyboard protocol, "fixterms"),
             -- which is also what terminals are usually configured to send
             ,("\ESC[13;2u", shiftReturn)
@@ -209,7 +209,7 @@ lexKeys baseMap cs
             = k : lexKeys baseMap ds
 -- the kitty keyboard protocol's sequences, and other control sequences that
 -- are whole, which are ignored rather than read as the keys that make them up
--- (vendored copy, see VENDORED.md)
+-- (this fork, see FORK.md)
 lexKeys baseMap cs
     | Just (csi,ds) <- lexCsi cs = case csi of
         CsiKey k -> asLegacyKey baseMap k : lexKeys baseMap ds
@@ -253,8 +253,8 @@ withPosixGetEvent eventChan h termKeys canUseProtocol f = wrapTerminalOps h $ do
         $ withWindowHandler eventChan
         $ f $ liftIO $ getEvent (ehIn h) baseMap eventChan
 
--- | Have the terminal use the kitty keyboard protocol (vendored copy, see
--- VENDORED.md).
+-- | Have the terminal use the kitty keyboard protocol (this fork, see
+-- FORK.md).
 withKeyboardProtocol :: (MonadIO m, MonadMask m) => Handles -> m a -> m a
 withKeyboardProtocol h = bracket_ (liftIO on) (liftIO off)
   where
@@ -295,8 +295,8 @@ data SignalledOrKeys = Signalled | Keys [Key]
 -- | The terminal makes the interrupt, quit and suspend characters signals
 -- (when ISIG is set), so they reach haskeline only from the kitty keyboard
 -- protocol, which sends them as keys: raise the signal the terminal would
--- have, and as it does drop the input that came with it (vendored copy, see
--- VENDORED.md). The program is stopped, or may stop, with the terminal's
+-- have, and as it does drop the input that came with it (this fork, see
+-- FORK.md). The program is stopped, or may stop, with the terminal's
 -- keyboard mode as the shell knows it.
 raiseSignalOfKeys :: Handle -> [Key] -> IO SignalledOrKeys
 raiseSignalOfKeys h ks

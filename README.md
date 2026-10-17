@@ -1,5 +1,9 @@
 # Haskeline
 
+This is a fork of haskeline 0.8.2.1 with changes for multiline editing,
+editing the line in `EDITOR` and the kitty keyboard protocol; see
+[FORK.md](FORK.md).
+
 The Haskeline library provides a user interface for line input in command-line programs.
 This library is similar in purpose to readline, but since it is written in Haskell it is (hopefully)
 more easily used in other Haskell programs.

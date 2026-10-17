@@ -1,5 +1,5 @@
--- | The kitty keyboard protocol (added to the vendored copy, see
--- VENDORED.md): while a line is read the terminal is asked to send keys
+-- | The kitty keyboard protocol (added in this fork, see
+-- FORK.md): while a line is read the terminal is asked to send keys
 -- that it otherwise can't tell apart (escape and alt-key, return and
 -- shift-return) as escape sequences of their own, which are read here.
 --

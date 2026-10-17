@@ -29,7 +29,7 @@ data Invocation = Invocation {
             , environment :: [(String,String)]
             , pause :: Int
             -- ^ microseconds to wait for output after each input (added
-            -- to the vendored copy, see VENDORED.md)
+            -- in this fork, see FORK.md)
             }
 
 setEnv :: String -> String -> Invocation -> Invocation

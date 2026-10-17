@@ -66,7 +66,7 @@ runCommandLoop' liftE tops prefix initState cmds getEvent = do
                                     return x
 
 -- | Indent the lines after a newline in the text by the width of the
--- prompt's last line (added to the vendored copy, see VENDORED.md), so that
+-- prompt's last line (added in this fork, see FORK.md), so that
 -- the lines of the text start in the same column. Only how the line is drawn
 -- changes; the spaces aren't part of the text.
 indentLines :: Prefix -> LineChars -> LineChars

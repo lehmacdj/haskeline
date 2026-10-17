@@ -43,7 +43,7 @@ main = do
     p <- head . lines <$> readProcess "which" ["haskeline-examples-Test"] ""
     cwd <- getWorkingDirectory
     -- without HOME haskeline finds the home directory of whoever runs the
-    -- tests, and their ~/.haskeline (vendored copy, see VENDORED.md)
+    -- tests, and their ~/.haskeline (this fork, see FORK.md)
     let i = withHome cwd "default" $ setTerm "xterm"
             Invocation {
                 prog = p,
@@ -53,7 +53,7 @@ main = do
                 pause = 20000
             }
     result <- runTestTT $ test
-        [interactionTests i, fileStyleTests i, vendoredTests cwd i]
+        [interactionTests i, fileStyleTests i, forkTests cwd i]
     when (errors result > 0 || failures result > 0) exitFailure
 
 interactionTests :: Invocation -> Test
@@ -150,7 +150,7 @@ historyTests i =  "history encoding" ~:
         [prompt 0, utf8 "abcα\65533x\65533x\65533" ]
     ] ++
     -- In latin-1: read errors as utf-8 '\65533', display as '?'.
-    -- Skipped on macOS (vendored copy, see VENDORED.md): GHC's locale
+    -- Skipped on macOS (this fork, see FORK.md): GHC's locale
     -- encoding there is UTF-8 whatever LANG says, so the test can't run in
     -- latin-1 (it failed before the copy was changed).
     [ latin1TestInvalidHist i  [ "\ESC[A" ]
@@ -290,7 +290,7 @@ rmkx = utf8 "\ESC[?1l\ESC>"
 
 prompt, prompt' :: Int -> B.ByteString
 -- the terminfo backend has the terminal use the kitty keyboard protocol
--- while it reads (vendored copy, see VENDORED.md)
+-- while it reads (this fork, see FORK.md)
 prompt k = smkx <> pushProtocol <> prompt' k
 
 prompt' k = utf8 (T.pack (show k ++ ":"))
@@ -351,10 +351,10 @@ latin1TestInvalidHist i input output' = test $ do
     assertInvocation (setLatin1 i) input output'
 
 -------------
--- Tests of what the vendored copy adds (see VENDORED.md)
+-- Tests of what this fork adds (see FORK.md)
 
-vendoredTests :: FilePath -> Invocation -> Test
-vendoredTests cwd i = "vendored" ~: test
+forkTests :: FilePath -> Invocation -> Test
+forkTests cwd i = "fork" ~: test
     [ multilineTests cwd (setUTF8 i)
     , multilineHistoryTests (setUTF8 i)
     , editorTests cwd (setUTF8 i)

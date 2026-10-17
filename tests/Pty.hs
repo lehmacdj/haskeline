@@ -25,8 +25,8 @@ import Control.Concurrent
 -- one block at a time.
 -- After each input, pause for 0.2s and then read as much output as possible.
 --
--- The pause is the given number of microseconds (added to the vendored
--- copy, see VENDORED.md: 20ms is too short for a program that runs another).
+-- The pause is the given number of microseconds (added in this
+-- fork, see FORK.md: 20ms is too short for a program that runs another).
 runCommandInPty :: Int -> String -> [String] -> Maybe [(String,String)]
         -> [B.ByteString] -> IO [B.ByteString]
 runCommandInPty pause prog args env inputs = do
@@ -57,8 +57,8 @@ putInput fd input =
             then threadDelay 1000 >> putInput fd input
             else return ()
 
--- Read until no more output comes for the pause (vendored copy, see
--- VENDORED.md: a program may write what one input makes in several writes).
+-- Read until no more output comes for the pause (this fork, see
+-- FORK.md: a program may write what one input makes in several writes).
 getOutput :: Int -> Fd -> IO B.ByteString
 getOutput pause fd = loop B.empty
   where

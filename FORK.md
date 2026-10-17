@@ -1,17 +1,16 @@
-# haskeline, vendored
+# This fork of haskeline
 
-This is haskeline 0.8.2.1 from Hackage (`stack unpack haskeline-0.8.2.1`),
-used by `ge` in place of the release through `extra-deps` in
-`../stack.yaml`.
+This is haskeline 0.8.2.1 (the `0.8.2.1` tag, with Hackage's revision 3 of
+`haskeline.cabal`) and the changes below, made for `ge`, the graph editor
+of [lehmacdj/graph](https://github.com/lehmacdj/graph), which uses it
+through a `git` entry in the `extra-deps` of its `stack.yaml`. They live
+here because haskeline has no way for a program to bind a key to an action
+of its own. The commits after the tag are the changes, one each.
 
-It is vendored because haskeline has no way for a program to bind a key to
-an action of its own. The commits that change this directory after the one
-that added it are the patch; `jj diff` from that commit shows all of it.
+The files keep their upstream formatting; the repository's jj config turns
+the ormolu fix tool off.
 
-The files keep their upstream formatting: the repository's jj config
-excludes `cli/haskeline/**` from the ormolu fix tool.
-
-## The patch
+## The changes
 
 - Ctrl-G (Emacs mode, and both insert and command mode in Vi mode) opens
   the line in `EDITOR` (`vim` when it is not set), run as a shell runs
@@ -23,7 +22,8 @@ excludes `cli/haskeline/**` from the ormolu fix tool.
 - A line can have newlines in it: shift-return inserts one, in Emacs mode
   and in Vi insert mode. A terminal sends shift-return as return unless it
   uses the kitty keyboard protocol (below) or is set up to tell them apart,
-  so the patch reads the two encodings terminals use: `ESC [ 13 ; 2 u` (CSI u, which the kitty keyboard protocol and most
+  so the fork reads the two encodings terminals use: `ESC [ 13 ; 2 u`
+  (CSI u, which the kitty keyboard protocol and most
   "send this text for shift+enter" settings use) and `ESC [ 27 ; 2 ; 13 ~`
   (xterm's modifyOtherKeys). Meta-return (escape and return arriving
   together) also inserts a newline, for terminals that can send that but
@@ -83,24 +83,21 @@ excludes `cli/haskeline/**` from the ormolu fix tool.
 - The history file can hold entries with newlines: it starts with the line
   `# haskeline history: escaped entries`, and its entries are escaped
   (`\\` and `\n`). A file without that line is read as before, one entry
-  per line. An unpatched haskeline reads an escaped file with the escapes in
+  per line. Upstream haskeline reads an escaped file with the escapes in
   its entries. `History.hs`.
 
 ## Tests
 
-`./run-tests.sh` runs haskeline's tests (stack does not run the tests of an
-extra-dep); the patch's are `vendoredTests` in `tests/Unit.hs`. They drive
-`haskeline-examples-Test` in a pseudoterminal and compare what it writes.
-The patch also changes the test harness: each test sets `HOME` to a
-directory in `tests/homes/` (without it haskeline found the `~/.haskeline`
-of whoever ran the tests, and several upstream tests failed in Vi mode), and
-`RunTTY`'s `pause` sets how long to wait for output after each input (the
-Ctrl-G tests run a shell script as the editor), and the output of an input
-is read until there is no more for that long (the program may write it in
-several writes).
+`stack test` runs haskeline's tests; the fork's are `forkTests` in
+`tests/Unit.hs`. They drive `haskeline-examples-Test` in a pseudoterminal
+and compare what it writes. The fork also changes the test harness: each
+test sets `HOME` to a directory in `tests/homes/` (without it haskeline
+found the `~/.haskeline` of whoever ran the tests, and several upstream
+tests failed in Vi mode), `RunTTY`'s `pause` sets how long to wait for
+output after each input (the Ctrl-G tests run a shell script as the
+editor), and the output of an input is read until there is no more for
+that long (the program may write it in several writes).
 
-Two upstream tests failed before the patch. "Tab completion" needs
-`tests/dummy-μασ/` (with the files `ςερτ` and `bar`), which the Hackage
-tarball does not have; the copy has it now. The third "history encoding"
-test, which reads the history in latin-1, is skipped on macOS: GHC's locale
-encoding there is UTF-8 whatever `LANG` says, so it can't pass.
+The third "history encoding" test, which reads the history in latin-1, is
+skipped on macOS: GHC's locale encoding there is UTF-8 whatever `LANG`
+says, so it can't pass.

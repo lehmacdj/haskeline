@@ -223,7 +223,7 @@ skipRight f (IMode xs ys) = let (ws,zs) = span (f . baseChar) ys
                             in IMode (reverse ws ++ xs) zs
 
 -- | Move to the line above or below in a line with newlines in it (added
--- to the vendored copy, see VENDORED.md), keeping the column (counted in
+-- in this fork, see FORK.md), keeping the column (counted in
 -- graphemes) as far as the line it goes to is long; 'Nothing' on the first
 -- or last line.
 lineUp, lineDown :: InsertMode -> Maybe InsertMode

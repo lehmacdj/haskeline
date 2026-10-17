@@ -525,6 +525,12 @@ editorTests cwd i = "ctrl-g opens the line in EDITOR" ~:
             ["one", ctrlG, "\n"]
         [ prompt 0, utf8 "one", aroundEditor <> utf8 " --visual"
         , end <> output 0 (utf8 "one --visual") <> prompt 1 ]
+    , "a failed editor leaves nothing to undo"
+        ~: testI (editor "fail") ["one", raw [21], "two", ctrlG, raw [31], "\n"]
+        -- undo goes back to the line before ctrl-u
+        [ prompt 0, utf8 "one", utf8 "\ESC[3D" <> clearEOL, utf8 "two"
+        , aroundEditor <> bell, utf8 "\ESC[3Done"
+        , end <> output 0 (utf8 "one") <> prompt 1 ]
     , "ctrl-c after ctrl-g, with a handler the GHC runtime doesn't know"
         ~: testI (unheld (editor "append-args --x")) ["one", ctrlG, utf8 "\ESC[99;5u"]
         [ prompt 0, utf8 "one", aroundEditor <> utf8 " --x"

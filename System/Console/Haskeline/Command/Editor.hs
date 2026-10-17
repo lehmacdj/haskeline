@@ -26,13 +26,16 @@ import Foreign.Ptr (Ptr)
 -- set), and make what the editor saved the line, with the cursor at its
 -- end. The newlines at the end are dropped and the others stay, since a line
 -- can have newlines in it. When the editor fails the line stays as it was
--- and the bell rings.
-editInEditor :: (MonadIO m, Save s) => Command m s s
-editInEditor s = do
+-- and the bell rings. The command given runs on the line before it changes
+-- (to save it for undo).
+editInEditor :: (MonadIO m, Save s) => Command m s s -> Command m s s
+editInEditor beforeChange s = do
     edited <- CmdM (Result <$> liftIO (runEditorOn (toResult (save s))))
     case edited of
         Nothing -> effect RingBell >> return s
-        Just line -> setState (restore (insertString line emptyIM))
+        Just line -> do
+            _ <- beforeChange s
+            setState (restore (insertString line emptyIM))
 
 -- | Write the text to a temporary file, run the editor on it and read it
 -- back; 'Nothing' when anything fails, the editor included.

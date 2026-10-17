@@ -73,6 +73,11 @@ the ormolu fix tool off.
     haskeline has no key for. When the input ends partway through a control
     sequence (it can come in two reads, over ssh say), haskeline waits up
     to 100ms for the rest.
+    It waits too when the input ends in an escape, once the terminal has
+    sent the escape key the protocol's way (`CSI 27 u`): an escape is then
+    never a key on its own. Until then it may be the escape key of a
+    terminal that ignored the request (and an escape key that waited
+    would be slow in Vi mode).
   - With the protocol the terminal sends ctrl-c, ctrl-\ and ctrl-z as keys
     rather than as signals, so haskeline sends the signal the terminal
     would have (when its ISIG is set) to the terminal's foreground process

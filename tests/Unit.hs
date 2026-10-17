@@ -608,6 +608,12 @@ keyboardProtocolTests cwd i = "kitty keyboard protocol" ~:
     , "ctrl-z: the protocol stays off when lines are read on another thread"
         ~: testI (forked i) ["ab", utf8 "\ESC[122;5ucd", "e\n"]
         [ prompt 0, utf8 "ab", popProtocol, B.empty ]
+    , "an escape split from the rest of its sequence, once the terminal has\
+      \ sent the escape key the protocol's way"
+        ~: testI vi ["abc", utf8 "\ESC[27u", "a", "\ESC", "[27u", "0", "\n"]
+        -- escape and the rest are read together, as escape
+        [ prompt 0, utf8 "abc", utf8 "\b", utf8 "\ESC[C", B.empty, utf8 "\b"
+        , left 2, end <> output 0 (utf8 "abc") <> prompt 1 ]
     , "keypad enter" ~: testI i ["ab", utf8 "\ESC[57414u"]
         [ prompt 0, utf8 "ab", end <> output 0 (utf8 "ab") <> prompt 1 ]
     , "home" ~: testI i ["ab", utf8 "\ESC[H", "x", "\n"]

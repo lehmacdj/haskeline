@@ -15,13 +15,16 @@ module System.Console.Haskeline.KeyboardProtocol (
                         withoutProtocol,
                         CsiKey(..),
                         lexCsi,
-                        endsInPartialCsi
+                        noteProtocolKeys,
+                        endsInPartialKey
                         ) where
 
 import Control.Exception (bracket_, mask_)
 import Data.Bits ((.&.), clearBit, testBit)
 import Data.Char (chr, isDigit, isLetter, toUpper)
+import Control.Monad (when)
 import Data.IORef
+import Data.Maybe (isJust)
 import System.IO.Unsafe (unsafePerformIO)
 
 import System.Console.Haskeline.Key
@@ -65,12 +68,43 @@ lexCsi ('\ESC':'[':cs)
         = Just (maybe CsiIgnored CsiKey (csiKey params final), rest)
 lexCsi _ = Nothing
 
--- | Whether the input ends partway through a control sequence (@ESC [@ and
--- parameters, without the final character), whose rest is still coming.
-endsInPartialCsi :: String -> Bool
-endsInPartialCsi cs = case break (== '\ESC') (reverse cs) of
-    (params, '\ESC':_) | ('[':rest) <- reverse params -> all isParam rest
-    _ -> False
+-- | Whether the terminal has sent the escape key the protocol's way (@CSI 27
+-- u@), and so uses it: then an escape on its own is never a whole key.
+-- Until it has, an escape may be the escape key of a terminal that ignored
+-- the request (one set up to send @CSI 13 ; 2 u@ for shift-return, say,
+-- which is no sign of the protocol).
+protocolSeen :: IORef Bool
+protocolSeen = unsafePerformIO (newIORef False)
+{-# NOINLINE protocolSeen #-}
+
+-- | Note the input read, for 'protocolSeen'.
+noteProtocolKeys :: String -> IO ()
+noteProtocolKeys cs = when (hasProtocolKey cs) $ writeIORef protocolSeen True
+  where
+    hasProtocolKey s = case s of
+        '\ESC':'[':'2':'7':rest
+            | (ps, 'u':_) <- span isParam rest, take 1 ps `elem` ["", ";", ":"]
+                -> True
+        _:rest -> hasProtocolKey rest
+        [] -> False
+
+-- | Whether the input ends partway through a key whose rest is still
+-- coming: in a control sequence (@ESC [@ and parameters, without the final
+-- character), or, while the terminal uses the protocol, just after an
+-- escape.
+endsInPartialKey :: String -> IO Bool
+endsInPartialKey cs
+    | endsInPartialCsi = return True
+    | lastIsEscape = do
+        on <- isJust <$> readIORef protocolSwitch
+        seen <- readIORef protocolSeen
+        return (on && seen)
+    | otherwise = return False
+  where
+    endsInPartialCsi = case break (== '\ESC') (reverse cs) of
+        (params, '\ESC':_) | ('[':rest) <- reverse params -> all isParam rest
+        _ -> False
+    lastIsEscape = not (null cs) && last cs == '\ESC'
 
 isParam :: Char -> Bool
 isParam c = isDigit c || c `elem` ";:<=>?"

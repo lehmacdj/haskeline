@@ -283,6 +283,7 @@ withHandler signal handler f = do
 getEvent :: Handle -> TreeMap Char Key -> TChan Event -> IO Event
 getEvent h baseMap = keyEventLoop $ do
         cs <- getBlockOfChars h
+        noteProtocolKeys cs
         signalled <- raiseSignalOfKeys h $ lexKeys baseMap cs
         return $ case signalled of
             -- reading on is where an interrupt is expected (it moves to the
@@ -341,8 +342,9 @@ signalForeground fd sig = do
 -- will all be available at once, so they can be processed together
 -- (with Posix.lexKeys).  A control sequence (@ESC [@) can still arrive in
 -- two reads, over ssh say, and with the kitty keyboard protocol every key
--- with ctrl or alt is one; when the input ends partway through one, wait a
--- moment for the rest (added in this fork, see FORK.md).
+-- with ctrl or alt is one; when the input ends partway through one (see
+-- 'endsInPartialKey'), wait a moment for the rest (added in this fork, see
+-- FORK.md).
 getBlockOfChars :: Handle -> IO String
 getBlockOfChars h = do
     c <- hGetChar h
@@ -350,9 +352,10 @@ getBlockOfChars h = do
   where
     loop cs = do
         isReady <- hReady h
-        more <- if isReady || not (endsInPartialCsi (reverse cs))
-            then return isReady
-            else hWaitForInput h partialCsiWaitMs
+        partial <- if isReady then return False
+            else endsInPartialKey (reverse cs)
+        more <- if partial then hWaitForInput h partialCsiWaitMs
+            else return isReady
         if not more
             then return $ reverse cs
             else do

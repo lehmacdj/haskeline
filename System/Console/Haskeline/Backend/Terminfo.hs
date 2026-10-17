@@ -10,7 +10,6 @@ module System.Console.Haskeline.Backend.Terminfo(
 import System.Console.Terminfo
 import Control.Monad
 import Control.Monad.Catch
-import Data.List(foldl')
 import System.IO
 import qualified Control.Exception as Exception
 import Data.Maybe (fromMaybe, mapMaybe)
@@ -236,44 +235,54 @@ moveToPos p = do
     put p
     output $ changePos oldP p
 
-moveRelative :: Int -> ActionM ()
-moveRelative n = liftM3 (advancePos n) ask get get
-                    >>= \p -> moveToPos p
+-- | Where the cursor is after drawing the given text from the start of the
+-- prompt.  This follows 'printText' step by step, wrapping and newlines
+-- included; the drawing code moves the cursor to the positions it gives
+-- rather than by a number of cells, which a newline would make wrong.
+advanceText :: Int -> TermPos -> [Grapheme] -> TermPos
+advanceText w p gs = case break isNewline gs of
+    (seg, []) -> advanceSegment w p seg
+    (seg, _:rest) -> let r = termRow (advanceSegment w p seg)
+                     in advanceText w TermPos {termRow=r+1, termCol=0} rest
 
--- Note that these move by a certain number of cells, not graphemes.
-changeRight, changeLeft :: Int -> ActionM ()
-changeRight n   | n <= 0 = return ()
-                | otherwise = moveRelative n
-changeLeft n    | n <= 0 = return ()
-                | otherwise = moveRelative (negate n)
-
-
--- TODO: this could be more efficient by only checking intermediate rows.
--- TODO: this is worth handling with QuickCheck.
-advancePos :: Int -> Layout -> TermRows -> TermPos -> TermPos
-advancePos k Layout {width=w} rs p = indexToPos $ k + posIndex
+advanceSegment :: Int -> TermPos -> [Grapheme] -> TermPos
+advanceSegment _ p [] = p
+advanceSegment w TermPos {termRow=r, termCol=c} gs
+    | null rest && lineWidth < w = TermPos {termRow=r, termCol=lineWidth}
+    | null this && c == 0 = TermPos {termRow=r+1, termCol=0} -- see printSegment
+    | otherwise = advanceSegment w TermPos {termRow=r+1, termCol=0} rest
   where
-    posIndex = termCol p + sum' (map (lookupCells rs)
-                                            [0..termRow p-1])
-    indexToPos n = loopFindRow 0 n
-    loopFindRow r m = r `seq` m `seq` let
-        thisRowSize = lookupCells rs r
-        in if m < thisRowSize
-                || (m == thisRowSize && m < w)
-                || thisRowSize <= 0 -- This shouldn't happen in practice,
-                                    -- but double-check to prevent an infinite loop
-                then TermPos {termRow=r, termCol=m}
-                else loopFindRow (r+1) (m-thisRowSize)
+    (this,rest,thisWidth) = splitAtWidth (w-c) gs
+    lineWidth = c + thisWidth
 
-sum' :: [Int] -> Int
-sum' = foldl' (+) 0
+posAfter :: [Grapheme] -> ActionM TermPos
+posAfter gs = do
+    w <- asks width
+    return $ advanceText w initTermPos gs
+
+isNewline :: Grapheme -> Bool
+isNewline g = baseChar g == '\n'
 
 ----------------------------------------------------------------
 -- Text printing actions
 
+-- | Print text from the cursor; a newline in it ends the row: the rest of
+-- the row is cleared and the text goes on at the start of the next one.
 printText :: [Grapheme] -> ActionM ()
-printText [] = return ()
-printText gs = do
+printText gs = case break isNewline gs of
+    (seg, []) -> printSegment seg
+    (seg, _:rest) -> do
+        printSegment seg
+        TermPos {termRow=r, termCol=c} <- get
+        modify $ setRow r c
+        output $ clearToLineEnd <#> cr <#> nl
+        put TermPos {termRow=r+1, termCol=0}
+        modify $ setRow (r+1) 0
+        printText rest
+
+printSegment :: [Grapheme] -> ActionM ()
+printSegment [] = return ()
+printSegment gs = do
     -- First, get the monadic parameters:
     w <- asks width
     TermPos {termRow=r, termCol=c} <- get
@@ -286,10 +295,14 @@ printText gs = do
     if null rest && lineWidth < w
         then  -- everything fits on one line without wrapping
             put TermPos {termRow=r, termCol=lineWidth}
+        else if null thisLine && c == 0
+            -- a character wider than the terminal: drop the rest rather
+            -- than wrap forever
+            then put TermPos {termRow=r+1, termCol=0}
         else do -- Must wrap to the next line
             put TermPos {termRow=r+1,termCol=0}
             output $ if lineWidth == w then wrapLine else spaces (w-lineWidth)
-            printText rest
+            printSegment rest
 
 ----------------------------------------------------------------
 -- High-level Term implementation
@@ -297,11 +310,11 @@ printText gs = do
 drawLineDiffT :: LineChars -> LineChars -> ActionM ()
 drawLineDiffT (xs1,ys1) (xs2,ys2) = case matchInit xs1 xs2 of
     ([],[])     | ys1 == ys2            -> return ()
-    (xs1',[])   | xs1' ++ ys1 == ys2    -> changeLeft (gsWidth xs1')
-    ([],xs2')   | ys1 == xs2' ++ ys2    -> changeRight (gsWidth xs2')
-    (xs1',xs2')                         -> do
+    (xs1',[])   | xs1' ++ ys1 == ys2    -> posAfter xs2 >>= moveToPos
+    ([],xs2')   | ys1 == xs2' ++ ys2    -> posAfter xs2 >>= moveToPos
+    (_,xs2')                            -> do
         oldRS <- get
-        changeLeft (gsWidth xs1')
+        posAfter (take (length xs2 - length xs2') xs2) >>= moveToPos
         printText xs2'
         p <- get
         printText ys2

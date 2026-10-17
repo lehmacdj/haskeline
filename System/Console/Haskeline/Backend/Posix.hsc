@@ -153,7 +153,16 @@ ansiKeys = [("\ESC[D",  simpleKey LeftKey)
             -- which uses them as regular arrow keys.)
             ,("\ESC[OD", ctrlKey $ simpleKey LeftKey)
             ,("\ESC[OC", ctrlKey $ simpleKey RightKey)
+            -- shift-return, which terminals only tell apart from return
+            -- when set up to (added to the vendored copy, see VENDORED.md):
+            -- the CSI u encoding (the kitty keyboard protocol, "fixterms"),
+            -- which is also what terminals are usually configured to send
+            ,("\ESC[13;2u", shiftReturn)
+            -- xterm's modifyOtherKeys
+            ,("\ESC[27;2;13~", shiftReturn)
             ]
+  where
+    shiftReturn = Key noModifier {hasShift = True} (KeyChar '\n')
 
 
 sttyKeys :: Handle -> IO [(String, Key)]

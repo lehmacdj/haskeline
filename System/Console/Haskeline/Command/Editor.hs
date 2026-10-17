@@ -17,9 +17,9 @@ import System.IO
 import System.Process
 
 -- | Open the line in the editor @EDITOR@ (@vim@ when it is not set) and make
--- what the editor saved the line, with the cursor at its end. Newlines are
--- not part of a line: the ones at the end are dropped and the others become
--- spaces. When the editor fails the line stays as it was and the bell rings.
+-- what the editor saved the line, with the cursor at its end. The newlines
+-- at the end are dropped and the others stay, since a line can have newlines
+-- in it. When the editor fails the line stays as it was and the bell rings.
 editInEditor :: (MonadIO m, Save s) => Command m s s
 editInEditor s = do
     edited <- CmdM (Result <$> liftIO (runEditorOn (toResult (save s))))
@@ -44,8 +44,7 @@ runEditorOn text = do
     return $ either (\(_ :: IOException) -> Nothing) id outcome
   where
     cleanUp (path, h) = hClose h `E.finally` removeFile path
-    asLine = map (\c -> if c == '\n' then ' ' else c)
-                . filter (/= '\r') . dropWhileEnd (`elem` "\r\n")
+    asLine = filter (/= '\r') . dropWhileEnd (`elem` "\r\n")
 
 readUtf8 :: FilePath -> IO String
 readUtf8 path = withFile path ReadMode $ \h -> do

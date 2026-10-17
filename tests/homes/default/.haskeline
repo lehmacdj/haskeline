@@ -1,0 +1,2 @@
+-- haskeline defaults, so that the tests do not read the ~/.haskeline of
+-- whoever runs them

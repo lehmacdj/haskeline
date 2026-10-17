@@ -1,0 +1,6 @@
+#!/bin/sh
+# A stand-in for EDITOR with arguments ("append-args --flag"): adds the
+# arguments before the file to the end of the file's line.
+args=
+while [ $# -gt 1 ]; do args="$args $1"; shift; done
+printf '%s' "$args" >> "$1"

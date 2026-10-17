@@ -35,6 +35,8 @@ module System.Console.Haskeline.LineState(
                     skipLeft,
                     skipRight,
                     transposeChars,
+                    lineUp,
+                    lineDown,
                     -- *** Moving to word boundaries
                     goRightUntil,
                     goLeftUntil,
@@ -219,6 +221,31 @@ skipLeft f (IMode xs ys) = let (ws,zs) = span (f . baseChar) xs
                            in IMode zs (reverse ws ++ ys)
 skipRight f (IMode xs ys) = let (ws,zs) = span (f . baseChar) ys 
                             in IMode (reverse ws ++ xs) zs
+
+-- | Move to the line above or below in a line with newlines in it (added
+-- to the vendored copy, see VENDORED.md), keeping the column (counted in
+-- graphemes) as far as the line it goes to is long; 'Nothing' on the first
+-- or last line.
+lineUp, lineDown :: InsertMode -> Maybe InsertMode
+lineUp (IMode xs ys) = case break isNewlineG xs of
+    (_, []) -> Nothing
+    (current, nl:above) ->
+        let (prev, older) = break isNewlineG above
+            col = min (length current) (length prev)
+            (afterCursor', beforeCursor') = splitAt (length prev - col) prev
+        in Just $ IMode (beforeCursor' ++ older)
+                        (reverse afterCursor' ++ nl : reverse current ++ ys)
+lineDown (IMode xs ys) = case break isNewlineG ys of
+    (_, []) -> Nothing
+    (current, nl:below) ->
+        let (next, newer) = break isNewlineG below
+            col = length (takeWhile (not . isNewlineG) xs)
+            (beforeCursor', afterCursor') = splitAt col next
+        in Just $ IMode (reverse beforeCursor' ++ nl : reverse current ++ xs)
+                        (afterCursor' ++ newer)
+
+isNewlineG :: Grapheme -> Bool
+isNewlineG g = baseChar g == '\n'
 
 transposeChars :: InsertMode -> InsertMode
 transposeChars (IMode (x:xs) (y:ys)) = IMode (x:y:xs) ys

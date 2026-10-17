@@ -45,8 +45,9 @@ simpleActions = choiceCmd
             , simpleKey Delete +> change deleteNext 
             , changeFromChar insertChar
             , completionCmd (simpleChar '\t')
-            , simpleKey UpKey +> historyBack
-            , simpleKey DownKey +> historyForward
+            , simpleKey UpKey +> lineUpOr historyBack
+            , simpleKey DownKey +> lineDownOr historyForward
+            , newlineCmds
             , simpleKey SearchReverse +> searchForPrefix Reverse
             , simpleKey SearchForward +> searchForPrefix Forward
             , searchHistory
@@ -69,8 +70,8 @@ controlActions = choiceCmd
             , ctrlChar '_' +> commandUndo
             , ctrlChar 'x' +> try (ctrlChar 'u' +> commandUndo)
             , ctrlChar 't' +> change transposeChars
-            , ctrlChar 'p' +> historyBack
-            , ctrlChar 'n' +> historyForward
+            , ctrlChar 'p' +> lineUpOr historyBack
+            , ctrlChar 'n' +> lineDownOr historyForward
             , metaChar '<' +> historyStart
             , metaChar '>' +> historyEnd
             , simpleKey Home +> change moveToStart

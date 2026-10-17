@@ -24,26 +24,29 @@ import Control.Concurrent
 -- Read the initial output, then feed the given input to it
 -- one block at a time.
 -- After each input, pause for 0.2s and then read as much output as possible.
-runCommandInPty :: String -> [String] -> Maybe [(String,String)]
+--
+-- The pause is the given number of microseconds (added to the vendored
+-- copy, see VENDORED.md: 20ms is too short for a program that runs another).
+runCommandInPty :: Int -> String -> [String] -> Maybe [(String,String)]
         -> [B.ByteString] -> IO [B.ByteString]
-runCommandInPty prog args env inputs = do
+runCommandInPty pause prog args env inputs = do
     (fd,pid) <- forkCommandInPty prog args env
     -- Block until the initial output from the program.
     -- After that, only use non-blocking reads.  Otherwise,
     -- we would hang the program in cases where the program has no output
     -- in between inputs.
-    firstOutput <- getOutput fd
+    firstOutput <- getOutput pause fd
     setFdOption fd NonBlockingRead True
-    outputs <- mapM (inputOutput fd) inputs
+    outputs <- mapM (inputOutput pause fd) inputs
     signalProcess killProcess pid
     _status <- getProcessStatus True False pid
     closeFd fd
     return (firstOutput : outputs)
 
-inputOutput :: Fd -> B.ByteString -> IO B.ByteString
-inputOutput fd input = do
+inputOutput :: Int -> Fd -> B.ByteString -> IO B.ByteString
+inputOutput pause fd input = do
     putInput fd input
-    getOutput fd
+    getOutput pause fd
 
 putInput :: Fd -> B.ByteString -> IO ()
 putInput fd input =
@@ -53,9 +56,9 @@ putInput fd input =
             then threadDelay 1000 >> putInput fd input
             else return ()
 
-getOutput :: Fd -> IO B.ByteString
-getOutput fd = do
-            threadDelay 20000
+getOutput :: Int -> Fd -> IO B.ByteString
+getOutput pause fd = do
+            threadDelay pause
             allocaBytes (fromIntegral numBytes) $ \buf -> do
                 num <- fdReadNonBlocking fd buf numBytes
                 B.packCStringLen (castPtr buf, fromIntegral num)

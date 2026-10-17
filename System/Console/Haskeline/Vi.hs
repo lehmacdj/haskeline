@@ -61,8 +61,9 @@ simpleInsertions = choiceCmd
                    , insertChars
                    , ctrlChar 'l' +> clearScreenCmd
                    , ctrlChar 'g' +> editInEditor
-                   , simpleKey UpKey +> historyBack
-                   , simpleKey DownKey +> historyForward
+                   , simpleKey UpKey +> lineUpOr historyBack
+                   , simpleKey DownKey +> lineDownOr historyForward
+                   , newlineCmds
                    , simpleKey SearchReverse +> searchForPrefix Reverse
                    , simpleKey SearchForward +> searchForPrefix Forward
                    , searchHistory
@@ -126,16 +127,29 @@ simpleCmdActions = choiceCmd [
                     , simpleChar 'u' +> commandUndo
                     , ctrlChar 'r' +> commandRedo
                     -- vi-mode quirk: history is put at the start of the line.
-                    , simpleChar 'j' +> historyForward >|> change moveToStart
-                    , simpleChar 'k' +> historyBack >|> change moveToStart
-                    , simpleKey DownKey +> historyForward  >|> change moveToStart
-                    , simpleKey UpKey +> historyBack >|> change moveToStart
+                    , simpleChar 'j' +> viLineDownOr (historyForward >|> change moveToStart)
+                    , simpleChar 'k' +> viLineUpOr (historyBack >|> change moveToStart)
+                    , simpleKey DownKey +> viLineDownOr (historyForward  >|> change moveToStart)
+                    , simpleKey UpKey +> viLineUpOr (historyBack >|> change moveToStart)
                     , simpleChar '/' +> viEnterSearch '/' Reverse
                     , simpleChar '?' +> viEnterSearch '?' Forward
                     , simpleChar 'n' +> viSearchHist Reverse []
                     , simpleChar 'N' +> viSearchHist Forward []
                     , simpleKey KillLine +> noArg >|> killAndStoreCmd (SimpleMove moveToStart)
                     ]
+
+-- | Move to the line above or below (added to the vendored copy, see
+-- VENDORED.md); as in vi the cursor goes on the last character of a line
+-- that is shorter than the column, not on the newline after it.
+viLineUpOr, viLineDownOr :: InputCmd CommandMode CommandMode
+                -> InputCmd CommandMode CommandMode
+viLineUpOr otherCmd = lineUpOr otherCmd >|> change offNewline
+viLineDownOr otherCmd = lineDownOr otherCmd >|> change offNewline
+
+offNewline :: CommandMode -> CommandMode
+offNewline (CMode (x:xs) c ys)
+    | baseChar c == '\n' && baseChar x /= '\n' = CMode xs x (c:ys)
+offNewline cm = cm
 
 replaceOnce :: InputCmd CommandMode CommandMode
 replaceOnce = try $ changeFromChar replaceChar

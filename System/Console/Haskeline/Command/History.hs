@@ -58,6 +58,18 @@ historyBack, historyForward :: (Save s, MonadState HistLog m) => Command m s s
 historyBack = simpleCommand $ histUpdate prevHistory
 historyForward = simpleCommand $ reverseHist . histUpdate prevHistory
 
+-- | Move to the line above or below when the line has newlines in it, and
+-- otherwise do the given command (added to the vendored copy, see
+-- VENDORED.md).
+lineUpOr, lineDownOr :: (Monad m, Save s) => Command m s s -> Command m s s
+lineUpOr = lineMoveOr lineUp
+lineDownOr = lineMoveOr lineDown
+
+lineMoveOr :: (Monad m, Save s) => (InsertMode -> Maybe InsertMode)
+                -> Command m s s -> Command m s s
+lineMoveOr move fallback s = maybe (fallback s) (setState . restore)
+                                (move (save s))
+
 historyStart, historyEnd :: (Save s, MonadState HistLog m) => Command m s s
 historyStart = simpleCommand $ histUpdate firstHistory
 historyEnd = simpleCommand $ reverseHist . histUpdate firstHistory

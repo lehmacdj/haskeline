@@ -62,7 +62,7 @@ readHistory file = handle (\(_::IOException) -> return emptyHistory) $ do
         then readUTF8File file
         else return ""
     _ <- evaluate (length contents) -- force file closed
-    return History {histLines = Seq.fromList $ lines contents,
+    return History {histLines = Seq.fromList $ fileEntries $ lines contents,
                     stifleAmt = Nothing}
 
 -- | Writes the line history to the given file.  If there is an
@@ -70,7 +70,32 @@ readHistory file = handle (\(_::IOException) -> return emptyHistory) $ do
 writeHistory :: FilePath -> History -> IO ()
 writeHistory file = handle (\(_::IOException) -> return ())
         . writeUTF8File file
-        . unlines . historyLines 
+        . unlines . (escapedHeader :) . map escapeEntry . historyLines
+
+-- An entry can have newlines in it (added to the vendored copy, see
+-- VENDORED.md), so a file starting with this line has one entry per line
+-- with backslashes and newlines escaped (@\\\\@ and @\\n@); a file
+-- without it is from before, with every line an entry as it is.
+escapedHeader :: String
+escapedHeader = "# haskeline history: escaped entries"
+
+fileEntries :: [String] -> [String]
+fileEntries (l:ls) | l == escapedHeader = map unescapeEntry ls
+fileEntries ls = ls
+
+escapeEntry :: String -> String
+escapeEntry = concatMap escape
+  where
+    escape '\\' = "\\\\"
+    escape '\n' = "\\n"
+    escape c = [c]
+
+-- | Anything that 'escapeEntry' can't have written is kept as it is.
+unescapeEntry :: String -> String
+unescapeEntry ('\\':'\\':cs) = '\\' : unescapeEntry cs
+unescapeEntry ('\\':'n':cs) = '\n' : unescapeEntry cs
+unescapeEntry (c:cs) = c : unescapeEntry cs
+unescapeEntry [] = []
 
 -- | Limit the number of lines stored in the history.
 stifleHistory :: Maybe Int -> History -> History

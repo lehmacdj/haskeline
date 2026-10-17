@@ -25,7 +25,8 @@ module System.Console.Haskeline.Command(
                         choiceCmd,
                         keyChoiceCmd,
                         keyChoiceCmdM,
-                        doBefore
+                        doBefore,
+                        newlineCmds
                         ) where
 
 import Data.Char(isPrint)
@@ -164,3 +165,15 @@ changeFromChar f = useChar $ change . f
 
 doBefore :: Monad m => Command m s t -> KeyCommand m t u -> KeyCommand m s u
 doBefore cmd = fmap (cmd >|>)
+
+-- | Shift-return, and meta-return for terminals that can't be set up to
+-- send shift-return, insert a newline (added to the vendored copy, see
+-- VENDORED.md).  A terminal sends meta-return as escape and return together;
+-- typed one after the other they stay two keys.
+newlineCmds :: Monad m => KeyCommand m InsertMode InsertMode
+newlineCmds = choiceCmd [k +> change (insertChar '\n') | k <- keys]
+  where
+    keys = [ Key noModifier {hasShift = True} (KeyChar '\n')
+           , metaChar '\n'
+           , metaChar '\r'
+           ]

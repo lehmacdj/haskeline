@@ -5,6 +5,7 @@ module RunTTY (Invocation(..),
             runInvocation,
             assertInvocation,
             testI,
+            setEnv,
             setLang,
             setTerm,
             setLatin1,
@@ -26,6 +27,9 @@ data Invocation = Invocation {
             , progArgs :: [String]
             , runInTTY :: Bool
             , environment :: [(String,String)]
+            , pause :: Int
+            -- ^ microseconds to wait for output after each input (added
+            -- to the vendored copy, see VENDORED.md)
             }
 
 setEnv :: String -> String -> Invocation -> Invocation
@@ -52,7 +56,7 @@ runInvocation :: Invocation
                         -- from coalescing the changes.)
         -> IO [B.ByteString]
 runInvocation Invocation {..} inputs
-    | runInTTY = runCommandInPty prog progArgs (Just environment) inputs
+    | runInTTY = runCommandInPty pause prog progArgs (Just environment) inputs
     | otherwise = do
     (Just inH, Just outH, Nothing, ph)
         <- createProcess (proc prog progArgs)

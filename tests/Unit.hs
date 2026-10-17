@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 -- Requirements:
--- - Empty ~/.haskeline (or set to defaults)
+-- - (none for ~/.haskeline: the tests set HOME to tests/homes/)
 -- - On Mac OS X, the "dumb term" test may fail.
 --   In particular, the line "* UTF-8" which makes locale_charset()
 --   always return UTF-8; otherwise we can't test latin-1.
@@ -18,6 +18,8 @@ import qualified Data.Text.Encoding as E
 import Data.Monoid ((<>))
 import System.Exit (exitFailure)
 import System.Process (readProcess)
+import System.Posix.Directory (getWorkingDirectory)
+import Control.Concurrent (threadDelay)
 import Test.HUnit
 
 import RunTTY
@@ -38,14 +40,19 @@ main :: IO ()
 main = do
     -- forkProcess needs an absolute path to the binary.
     p <- head . lines <$> readProcess "which" ["haskeline-examples-Test"] ""
-    let i = setTerm "xterm"
+    cwd <- getWorkingDirectory
+    -- without HOME haskeline finds the home directory of whoever runs the
+    -- tests, and their ~/.haskeline (vendored copy, see VENDORED.md)
+    let i = withHome cwd "default" $ setTerm "xterm"
             Invocation {
                 prog = p,
                 progArgs = [],
                 runInTTY = True,
-                environment = []
+                environment = [],
+                pause = 20000
             }
-    result <- runTestTT $ test [interactionTests i, fileStyleTests i]
+    result <- runTestTT $ test
+        [interactionTests i, fileStyleTests i, vendoredTests cwd i]
     when (errors result > 0 || failures result > 0) exitFailure
 
 interactionTests :: Invocation -> Test
@@ -330,3 +337,162 @@ latin1TestInvalidHist ::
 latin1TestInvalidHist i input output' = test $ do
     B.writeFile "myhist" $ invalidHist
     assertInvocation (setLatin1 i) input output'
+
+-------------
+-- Tests of what the vendored copy adds (see VENDORED.md)
+
+vendoredTests :: FilePath -> Invocation -> Test
+vendoredTests cwd i = "vendored" ~: test
+    [ multilineTests cwd (setUTF8 i)
+    , multilineHistoryTests (setUTF8 i)
+    , editorTests cwd (setUTF8 i)
+    ]
+
+shiftReturn :: B.ByteString
+shiftReturn = utf8 "\ESC[13;2u"
+
+-- What drawing a newline in the line writes: the rest of the row is
+-- cleared and the cursor goes to the start of the next one.
+newline :: B.ByteString
+newline = clearEOL <> cr <> nl
+
+clearEOL :: B.ByteString
+clearEOL = utf8 "\ESC[K"
+
+withHome :: FilePath -> String -> Invocation -> Invocation
+withHome cwd home = setEnv "HOME" (cwd ++ "/tests/homes/" ++ home)
+
+multilineTests :: FilePath -> Invocation -> Test
+multilineTests cwd i = "multiline" ~:
+    [ "shift-return (CSI u) inserts a newline" ~: testI i
+        ["a", shiftReturn, "b", "\n"]
+        [ prompt 0, utf8 "a", newline, utf8 "b"
+        , end <> output 0 (utf8 "a\nb") <> prompt 1 ]
+    , "shift-return (modifyOtherKeys)" ~: testI i
+        ["a", utf8 "\ESC[27;2;13~", "b", "\n"]
+        [ prompt 0, utf8 "a", newline, utf8 "b"
+        , end <> output 0 (utf8 "a\nb") <> prompt 1 ]
+    , "meta-return" ~: testI i
+        ["a", utf8 "\ESC\r", "b", "\n"]
+        [ prompt 0, utf8 "a", newline, utf8 "b"
+        , end <> output 0 (utf8 "a\nb") <> prompt 1 ]
+    , "shift-return from a keyseq in .haskeline" ~:
+        testI (withHome cwd "keyseq" i)
+        ["a", utf8 "\ESC[99~", "b", "\n"]
+        [ prompt 0, utf8 "a", newline, utf8 "b"
+        , end <> output 0 (utf8 "a\nb") <> prompt 1 ]
+    , "inserting in the first line redraws the lines after it" ~: testI i
+        ["a", shiftReturn, "b", "\ESC[A", "x"]
+        [ prompt 0, utf8 "a", newline, utf8 "b"
+        , up1 <> utf8 "\ESC[3C"
+        , utf8 "x" <> newline <> utf8 "b" <> up1 <> utf8 "\ESC[4C" ]
+    , "accepting from the first line moves below the last" ~: testI i
+        ["a", shiftReturn, "b", "\ESC[A", "\n"]
+        [ prompt 0, utf8 "a", newline, utf8 "b"
+        , up1 <> utf8 "\ESC[3C"
+        , nl <> end <> output 0 (utf8 "a\nb") <> prompt 1 ]
+    , "deleting a newline joins the lines and clears the row" ~: testI i
+        ["a", shiftReturn, "b", "\DEL", "\DEL", "c", "\n"]
+        [ prompt 0, utf8 "a", newline, utf8 "b"
+        , utf8 "\b" <> clearEOL
+        , up1 <> utf8 "\ESC[3C" <> clearEOL <> nl <> clearEOL
+            <> up1 <> utf8 "\ESC[3C"
+        , utf8 "c"
+        , end <> output 0 (utf8 "ac") <> prompt 1 ]
+    , "up and down keep the column as far as the line is long" ~: testI i
+        ["abc", shiftReturn, "d", "\ESC[A", "\ESC[B"]
+        [ prompt 0, utf8 "abc", newline, utf8 "d"
+        , up1 <> utf8 "\ESC[3C"
+        , cr <> nl <> utf8 "\ESC[C" ]
+    , "vi: j and k move between lines, onto the last character"
+        ~: testI vi
+        ["abc", shiftReturn, "de", "\ESC", "k", "j"]
+        [ prompt 0, utf8 "abc", newline, utf8 "de"
+        , utf8 "\b"
+        , up1 <> utf8 "\ESC[3C"
+        , cr <> nl <> utf8 "\ESC[C" ]
+    , "vi: k on a shorter line goes on its last character" ~: testI vi
+        ["a", shiftReturn, "bcd", "\ESC", "k"]
+        [ prompt 0, utf8 "a", newline, utf8 "bcd"
+        , utf8 "\b"
+        , up1 <> utf8 "\ESC[2C" ]
+    , "vi: k on the first line goes back in history" ~: test $ do
+        B.writeFile "myhist" B.empty
+        assertInvocation vi
+            [ "a", shiftReturn, "b", "\n"
+            , "x", shiftReturn, "y", "\ESC", "k", "k" ]
+            [ prompt 0, utf8 "a", newline, utf8 "b"
+            , end <> output 0 (utf8 "a\nb") <> prompt 1
+            , utf8 "x", newline, utf8 "y", utf8 "\b"
+            , up1 <> utf8 "\ESC[2C"
+            -- history puts the cursor at the start in vi mode
+            , utf8 "a" <> newline <> utf8 "b" <> up1 <> utf8 "\ESC[2C" ]
+    ]
+  where
+    vi = withHome cwd "vi" i
+    up1 = cr <> utf8 "\ESC[A"
+
+multilineHistoryTests :: Invocation -> Test
+multilineHistoryTests i = "multiline history" ~:
+    [ "entries are written escaped" ~: test $ do
+        writeHistoryFile B.empty
+        _ <- runInvocation i
+            [ "a", shiftReturn, utf8 "b\\c", "\n", "quit\n" ]
+        written <- readHistoryFile
+        written @?= escapedHeader
+                    <> utf8 "quit\na\\nb\\\\c\n"
+    , "escaped entries are read back" ~: test $ do
+        writeHistoryFile $ escapedHeader <> utf8 "x\\ny\\\\z\n"
+        assertInvocation i [ "\ESC[A" ]
+            [ prompt 0, utf8 "x" <> newline <> utf8 "y\\z" ]
+    , "a file without the header is read as it is" ~: test $ do
+        writeHistoryFile $ utf8 "x\\ny\n"
+        assertInvocation i [ "\ESC[A" ]
+            [ prompt 0, utf8 "x\\ny" ]
+    ]
+  where
+    escapedHeader = utf8 "# haskeline history: escaped entries\n"
+    writeHistoryFile = B.writeFile "myhist"
+    -- the history is written as the program exits, which may be a moment
+    -- after the last output
+    readHistoryFile = loop (50 :: Int)
+      where
+        loop n = do
+            contents <- B.readFile "myhist"
+            if B.null contents && n > 0
+                then threadDelay 20000 >> loop (n - 1)
+                else return contents
+
+editorTests :: FilePath -> Invocation -> Test
+editorTests cwd i = "ctrl-g opens the line in EDITOR" ~:
+    [ "what the editor saves becomes the line, newlines kept"
+        ~: testI (editor "append-line") ["one", ctrlG, "!", "\n"]
+        [ prompt 0, utf8 "one", newline <> utf8 "added", utf8 "!"
+        , end <> output 0 (utf8 "one\nadded!") <> prompt 1 ]
+    , "EDITOR can have arguments"
+        ~: testI (editor "append-args --flag") ["one", ctrlG, "\n"]
+        [ prompt 0, utf8 "one", utf8 " --flag"
+        , end <> output 0 (utf8 "one --flag") <> prompt 1 ]
+    , "an editor that fails leaves the line and rings the bell"
+        ~: testI (editor "fail") ["one", ctrlG, "\n"]
+        [ prompt 0, utf8 "one", bell
+        , end <> output 0 (utf8 "one") <> prompt 1 ]
+    , "vim when EDITOR is not set"
+        ~: testI (setEnv "PATH" editors slow) ["one", ctrlG, "\n"]
+        [ prompt 0, utf8 "one", utf8 " (vim)"
+        , end <> output 0 (utf8 "one (vim)") <> prompt 1 ]
+    , "vi: in command mode too"
+        ~: testI (withHome cwd "vi" (editor "append-line"))
+            ["one", "\ESC", ctrlG, "\n"]
+        [ prompt 0, utf8 "one", utf8 "\b"
+        -- the cursor goes on the last character, after the 'e' it was on
+        , utf8 "e" <> newline <> utf8 "added\b"
+        , end <> output 0 (utf8 "one\nadded") <> prompt 1 ]
+    ]
+  where
+    editors = cwd ++ "/tests/editors"
+    editor e = setEnv "EDITOR" (editors ++ "/" ++ e) slow
+    -- the editor is a shell script that takes a moment to run
+    slow = i { pause = 300000 }
+    ctrlG = raw [7]
+    bell = raw [7]

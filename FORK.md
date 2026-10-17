@@ -7,6 +7,9 @@ through a `git` entry in the `extra-deps` of its `stack.yaml`. They live
 here because haskeline has no way for a program to bind a key to an action
 of its own. The commits after the tag are the changes, one each.
 
+Its version is 0.8.2.1.1: with the release's version stack takes the
+haskeline that comes with GHC 9.6 for it and never builds the fork.
+
 The files keep their upstream formatting; the repository's jj config turns
 the ormolu fix tool off.
 

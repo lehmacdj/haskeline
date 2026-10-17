@@ -78,7 +78,11 @@ the ormolu fix tool off.
     sent the escape key the protocol's way (`CSI 27 u`): an escape is then
     never a key on its own. Until then it may be the escape key of a
     terminal that ignored the request (and an escape key that waited
-    would be slow in Vi mode).
+    would be slow in Vi mode); a modified escape (`CSI 27 ; 5 u`) is no
+    sign, since terminals with a CSI u mode of their own send that too.
+    An escape typed while no line is read (during a command) arrives
+    without the protocol, and one typed at once after it can then be read
+    with it as meta and the key, as without the protocol.
   - With the protocol the terminal sends ctrl-c, ctrl-\ and ctrl-z as keys
     rather than as signals, so haskeline sends the signal the terminal
     would have (when its ISIG is set) to the terminal's foreground process

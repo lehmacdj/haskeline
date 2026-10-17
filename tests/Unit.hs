@@ -630,6 +630,15 @@ keyboardProtocolTests cwd i = "kitty keyboard protocol" ~:
         -- escape and the rest are read together, as escape
         [ prompt 0, utf8 "abc", utf8 "\b", utf8 "\ESC[C", B.empty, utf8 "\b"
         , left 2, end <> output 0 (utf8 "abc") <> prompt 1 ]
+    , "the escape key with num lock is as good a sign of the protocol"
+        ~: testI vi ["abc", utf8 "\ESC[27;129u", "a", "\ESC", "[27u", "0", "\n"]
+        [ prompt 0, utf8 "abc", utf8 "\b", utf8 "\ESC[C", B.empty, utf8 "\b"
+        , left 2, end <> output 0 (utf8 "abc") <> prompt 1 ]
+    , "a modified escape (ctrl-escape) is no sign of the protocol"
+        ~: testI vi ["abc", utf8 "\ESC[27;5u", "A", "\ESC", "0", "X", "\n"]
+        -- the escape after it is read at once, as escape
+        [ prompt 0, utf8 "abc", utf8 "\b", utf8 "\ESC[C", utf8 "\b", left 2
+        , B.empty, end <> output 0 (utf8 "abc") <> prompt 1 ]
     , "alt and a shifted key is meta and the shifted key (M-< is the first\
       \ entry of the history)"
         ~: test $ do

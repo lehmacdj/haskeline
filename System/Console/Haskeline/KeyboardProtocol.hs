@@ -20,7 +20,7 @@ module System.Console.Haskeline.KeyboardProtocol (
                         ) where
 
 import Control.Exception (bracket_, mask_)
-import Data.Bits ((.&.), clearBit, testBit)
+import Data.Bits ((.&.), clearBit, complement, testBit)
 import Data.Char (chr, isDigit, isLetter, toUpper)
 import Control.Monad (when)
 import Data.IORef
@@ -69,7 +69,8 @@ lexCsi ('\ESC':'[':cs)
 lexCsi _ = Nothing
 
 -- | Whether the terminal has sent the escape key the protocol's way (@CSI 27
--- u@), and so uses it: then an escape on its own is never a whole key.
+-- u@), and so uses it: then an escape on its own is never a whole key. Not
+-- reset: the terminal stays the same.
 -- Until it has, an escape may be the escape key of a terminal that ignored
 -- the request (one set up to send @CSI 13 ; 2 u@ for shift-return, say,
 -- which is no sign of the protocol).
@@ -83,10 +84,18 @@ noteProtocolKeys cs = when (hasProtocolKey cs) $ writeIORef protocolSeen True
   where
     hasProtocolKey s = case s of
         '\ESC':'[':'2':'7':rest
-            | (ps, 'u':_) <- span isParam rest, take 1 ps `elem` ["", ";", ":"]
-                -> True
+            | (ps, 'u':_) <- span isParam rest, plainEscape ps -> True
         _:rest -> hasProtocolKey rest
         [] -> False
+    -- the escape key with no modifiers but caps lock and num lock: a
+    -- terminal with a CSI u mode of its own (xterm's formatOtherKeys, say)
+    -- sends ctrl-escape as @CSI 27 ; 5 u@ too, and escape as itself
+    plainEscape ps = case ps of
+        "" -> True
+        ';':mods@(_:_) | all isDigit mods ->
+            let bits = read mods - 1 :: Int
+            in bits >= 0 && bits .&. complement 192 == 0
+        _ -> False
 
 -- | Whether the input ends partway through a key whose rest is still
 -- coming: in a control sequence (@ESC [@ and parameters, without the final

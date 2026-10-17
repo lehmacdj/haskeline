@@ -19,12 +19,14 @@ import Foreign
 import Foreign.C.Types
 import qualified Data.Map as Map
 import System.Posix.Terminal hiding (Interrupt)
+import qualified System.Posix.Terminal as Terminal
 import Control.Exception (throwTo)
 import Control.Monad
-import Control.Monad.Catch (MonadMask, handle, finally)
+import Control.Monad.Catch (MonadMask, handle, finally, bracket_)
 import Control.Concurrent.STM
 import Control.Concurrent hiding (throwTo)
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes, isJust, mapMaybe)
+import Data.Char (isControl)
 import System.Posix.Signals.Exts
 import System.Posix.Types(Fd(..))
 import Data.Foldable (foldl')
@@ -35,6 +37,7 @@ import System.Console.Haskeline.Monads
 import System.Console.Haskeline.Key
 import System.Console.Haskeline.Term as Term
 import System.Console.Haskeline.Prefs
+import System.Console.Haskeline.KeyboardProtocol
 
 import System.Console.Haskeline.Backend.Posix.Encoder
 
@@ -204,11 +207,29 @@ lexKeys _ [] = []
 lexKeys baseMap cs
     | Just (k,ds) <- lookupChars baseMap cs
             = k : lexKeys baseMap ds
+-- the kitty keyboard protocol's sequences, and other control sequences that
+-- are whole, which are ignored rather than read as the keys that make them up
+-- (vendored copy, see VENDORED.md)
+lexKeys baseMap cs
+    | Just (csi,ds) <- lexCsi cs = case csi of
+        CsiKey k -> asLegacyKey baseMap k : lexKeys baseMap ds
+        CsiIgnored -> lexKeys baseMap ds
 lexKeys baseMap ('\ESC':cs)
 -- TODO: what's the right thing ' to do here?
     | k:ks <- lexKeys baseMap cs
             = metaKey k : ks
 lexKeys baseMap (c:cs) = simpleChar c : lexKeys baseMap cs
+
+-- | A character from the protocol is read as the same character typed
+-- without it would be (the terminal's erase and kill characters, the
+-- sequences of @~/.haskeline@).
+asLegacyKey :: TreeMap Char Key -> Key -> Key
+asLegacyKey baseMap k@(Key m (KeyChar c))
+    | not (hasControl m) && not (hasShift m)
+    , [k'] <- lexKeys baseMap [c]
+        = if hasMeta m then metaKey k' else k'
+    | otherwise = k
+asLegacyKey _ k = k
 
 lookupChars :: TreeMap Char Key -> [Char] -> Maybe (Key,[Char])
 lookupChars _ [] = Nothing
@@ -223,12 +244,25 @@ lookupChars (TreeMap tm) (c:cs) = case Map.lookup c tm of
 -----------------------------
 
 withPosixGetEvent :: (MonadIO m, MonadMask m, MonadReader Prefs m)
-        => TChan Event -> Handles -> [(String,Key)]
+        => TChan Event -> Handles -> [(String,Key)] -> Bool
                 -> (m Event -> m a) -> m a
-withPosixGetEvent eventChan h termKeys f = wrapTerminalOps h $ do
+withPosixGetEvent eventChan h termKeys canUseProtocol f = wrapTerminalOps h $ do
     baseMap <- getKeySequences (ehIn h) termKeys
-    withWindowHandler eventChan
+    useProtocol <- (canUseProtocol &&) <$> asks kittyKeyboardProtocol
+    (if useProtocol then withKeyboardProtocol h else id)
+        $ withWindowHandler eventChan
         $ f $ liftIO $ getEvent (ehIn h) baseMap eventChan
+
+-- | Have the terminal use the kitty keyboard protocol (vendored copy, see
+-- VENDORED.md).
+withKeyboardProtocol :: (MonadIO m, MonadMask m) => Handles -> m a -> m a
+withKeyboardProtocol h = bracket_ (liftIO on) (liftIO off)
+  where
+    send s = hPutStr (ehOut h) s >> hFlush (ehOut h)
+    on = do
+        send pushProtocol
+        setProtocolSwitch $ Just (send popProtocol, send pushProtocol)
+    off = setProtocolSwitch Nothing >> send popProtocol
 
 withWindowHandler :: (MonadIO m, MonadMask m) => TChan Event -> m a -> m a
 withWindowHandler eventChan = withHandler windowChange $
@@ -249,7 +283,43 @@ withHandler signal handler f = do
 getEvent :: Handle -> TreeMap Char Key -> TChan Event -> IO Event
 getEvent h baseMap = keyEventLoop $ do
         cs <- getBlockOfChars h
-        return [KeyInput $ lexKeys baseMap cs]
+        signalled <- raiseSignalOfKeys h $ lexKeys baseMap cs
+        return $ case signalled of
+            -- reading on is where an interrupt is expected (it moves to the
+            -- next line)
+            Signalled -> []
+            Keys ks -> [KeyInput ks]
+
+data SignalledOrKeys = Signalled | Keys [Key]
+
+-- | The terminal makes the interrupt, quit and suspend characters signals
+-- (when ISIG is set), so they reach haskeline only from the kitty keyboard
+-- protocol, which sends them as keys: raise the signal the terminal would
+-- have, and as it does drop the input that came with it (vendored copy, see
+-- VENDORED.md). The program is stopped, or may stop, with the terminal's
+-- keyboard mode as the shell knows it.
+raiseSignalOfKeys :: Handle -> [Key] -> IO SignalledOrKeys
+raiseSignalOfKeys h ks
+    | not (any (isJust . plainControl) ks) = return (Keys ks)
+    | otherwise = do
+        fd <- unsafeHandleToFD h
+        attrs <- getTerminalAttributes (Fd fd)
+        let signals = catMaybes
+                [ fmap (\c -> (c, sig)) (controlChar attrs cc)
+                | (cc, sig) <- [ (Terminal.Interrupt, keyboardSignal)
+                               , (Terminal.Quit, keyboardTermination)
+                               , (Terminal.Suspend, keyboardStop) ] ]
+            signalOf k = plainControl k >>= flip lookup signals
+        case mapMaybe signalOf ks of
+            sig:_ | terminalMode KeyboardInterrupts attrs -> do
+                if sig == keyboardSignal
+                    then raiseSignal sig
+                    else withoutProtocol (raiseSignal sig)
+                return Signalled
+            _ -> return (Keys ks)
+  where
+    plainControl (Key m (KeyChar c)) | m == noModifier && isControl c = Just c
+    plainControl _ = Nothing
 
 -- Read at least one character of input, and more if immediately
 -- available.  In particular the characters making up a control sequence
@@ -300,10 +370,11 @@ posixRunTerm ::
     Handles
     -> [IO (Maybe Layout)]
     -> [(String,Key)]
+    -> Bool -- ^ whether to use the kitty keyboard protocol
     -> (forall m b . (MonadIO m, MonadMask m) => m b -> m b)
     -> (forall m . (MonadMask m, CommandMonad m) => EvalTerm (PosixT m))
     -> IO RunTerm
-posixRunTerm hs layoutGetters keys wrapGetEvent evalBackend = do
+posixRunTerm hs layoutGetters keys useProtocol wrapGetEvent evalBackend = do
     ch <- newTChanIO
     fileRT <- posixFileRunTerm hs
     return fileRT
@@ -311,7 +382,7 @@ posixRunTerm hs layoutGetters keys wrapGetEvent evalBackend = do
                             { getLayout = tryGetLayouts layoutGetters
                             , withGetEvent = wrapGetEvent
                                             . withPosixGetEvent ch hs
-                                                keys
+                                                keys useProtocol
                             , saveUnusedKeys = saveKeys ch
                             , evalTerm = mapEvalTerm
                                             (runPosixT hs) lift evalBackend

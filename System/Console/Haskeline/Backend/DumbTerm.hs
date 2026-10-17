@@ -35,7 +35,7 @@ evalDumb :: (MonadReader Layout m, CommandMonad m) => EvalTerm (PosixT m)
 evalDumb = EvalTerm (evalStateT' initWindow . unDumbTerm) (DumbTerm . lift)
 
 runDumbTerm :: Handles -> MaybeT IO RunTerm
-runDumbTerm h = liftIO $ posixRunTerm h (posixLayouts h) [] id evalDumb
+runDumbTerm h = liftIO $ posixRunTerm h (posixLayouts h) [] False id evalDumb
                                 
 instance (MonadIO m, MonadMask m, MonadReader Layout m) => Term (DumbTerm m) where
     reposition _ s = refitLine s

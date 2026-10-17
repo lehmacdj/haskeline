@@ -48,7 +48,11 @@ data Prefs = Prefs { bellStyle :: !BellStyle,
                         -- presses @TAB@ again.
                      customBindings :: Map.Map Key [Key],
                         -- (termName, keysequence, key)
-                     customKeySequences :: [(Maybe String, String,Key)]
+                     customKeySequences :: [(Maybe String, String,Key)],
+                     kittyKeyboardProtocol :: !Bool
+                        -- ^ Whether to have the terminal use the kitty
+                        -- keyboard protocol while a line is read (added to
+                        -- the vendored copy, see VENDORED.md).
                      }
                         deriving Show
 
@@ -77,7 +81,8 @@ defaultPrefs = Prefs {bellStyle = AudibleBell,
                       listCompletionsImmediately = True,
                       historyDuplicates = AlwaysAdd,
                       customBindings = Map.empty,
-                      customKeySequences = []
+                      customKeySequences = [],
+                      kittyKeyboardProtocol = True
                     }
 
 mkSettor :: Read a => (a -> Prefs -> Prefs) -> String -> Prefs -> Prefs
@@ -100,6 +105,7 @@ settors = [("bellstyle", mkSettor $ \x p -> p {bellStyle = x})
           ,("historyduplicates", mkSettor $ \x p -> p {historyDuplicates = x})
           ,("bind", addCustomBinding)
           ,("keyseq", addCustomKeySequence)
+          ,("kittykeyboardprotocol", mkSettor $ \x p -> p {kittyKeyboardProtocol = x})
           ]
 
 addCustomBinding :: String -> Prefs -> Prefs

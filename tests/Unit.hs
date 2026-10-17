@@ -283,12 +283,18 @@ smkx = utf8 "\ESC[?1h\ESC="
 rmkx = utf8 "\ESC[?1l\ESC>"
 
 prompt, prompt' :: Int -> B.ByteString
-prompt k = smkx <> prompt' k
+-- the terminfo backend has the terminal use the kitty keyboard protocol
+-- while it reads (vendored copy, see VENDORED.md)
+prompt k = smkx <> pushProtocol <> prompt' k
 
 prompt' k = utf8 (T.pack (show k ++ ":"))
 
 end :: B.ByteString
-end = nl <> rmkx
+end = nl <> popProtocol <> rmkx
+
+pushProtocol, popProtocol :: B.ByteString
+pushProtocol = utf8 "\ESC[>1u"
+popProtocol = utf8 "\ESC[<u"
 
 cr :: B.ByteString
 cr = raw [13]
@@ -346,6 +352,7 @@ vendoredTests cwd i = "vendored" ~: test
     [ multilineTests cwd (setUTF8 i)
     , multilineHistoryTests (setUTF8 i)
     , editorTests cwd (setUTF8 i)
+    , keyboardProtocolTests cwd (setUTF8 i)
     ]
 
 shiftReturn :: B.ByteString
@@ -467,26 +474,26 @@ editorTests :: FilePath -> Invocation -> Test
 editorTests cwd i = "ctrl-g opens the line in EDITOR" ~:
     [ "what the editor saves becomes the line, newlines kept"
         ~: testI (editor "append-line") ["one", ctrlG, "!", "\n"]
-        [ prompt 0, utf8 "one", newline <> utf8 "added", utf8 "!"
+        [ prompt 0, utf8 "one", aroundEditor <> newline <> utf8 "added", utf8 "!"
         , end <> output 0 (utf8 "one\nadded!") <> prompt 1 ]
     , "EDITOR can have arguments"
         ~: testI (editor "append-args --flag") ["one", ctrlG, "\n"]
-        [ prompt 0, utf8 "one", utf8 " --flag"
+        [ prompt 0, utf8 "one", aroundEditor <> utf8 " --flag"
         , end <> output 0 (utf8 "one --flag") <> prompt 1 ]
     , "an editor that fails leaves the line and rings the bell"
         ~: testI (editor "fail") ["one", ctrlG, "\n"]
-        [ prompt 0, utf8 "one", bell
+        [ prompt 0, utf8 "one", aroundEditor <> bell
         , end <> output 0 (utf8 "one") <> prompt 1 ]
     , "vim when EDITOR is not set"
         ~: testI (setEnv "PATH" editors slow) ["one", ctrlG, "\n"]
-        [ prompt 0, utf8 "one", utf8 " (vim)"
+        [ prompt 0, utf8 "one", aroundEditor <> utf8 " (vim)"
         , end <> output 0 (utf8 "one (vim)") <> prompt 1 ]
     , "vi: in command mode too"
         ~: testI (withHome cwd "vi" (editor "append-line"))
             ["one", "\ESC", ctrlG, "\n"]
         [ prompt 0, utf8 "one", utf8 "\b"
         -- the cursor goes on the last character, after the 'e' it was on
-        , utf8 "e" <> newline <> utf8 "added\b"
+        , aroundEditor <> utf8 "e" <> newline <> utf8 "added\b"
         , end <> output 0 (utf8 "one\nadded") <> prompt 1 ]
     ]
   where
@@ -495,4 +502,54 @@ editorTests cwd i = "ctrl-g opens the line in EDITOR" ~:
     -- the editor is a shell script that takes a moment to run
     slow = i { pause = 300000 }
     ctrlG = raw [7]
+    bell = raw [7]
+    -- the editor runs with the terminal's keyboard mode as it was
+    aroundEditor = popProtocol <> pushProtocol
+
+-- The terminal sends these keys this way once haskeline has it use the kitty
+-- keyboard protocol; here they are sent as a terminal with it would.
+keyboardProtocolTests :: FilePath -> Invocation -> Test
+keyboardProtocolTests cwd i = "kitty keyboard protocol" ~:
+    [ "vi: escape followed at once by a key is escape and the key"
+        ~: testI vi ["ab", utf8 "\ESC[27u0", "x", "\n"]
+        [ prompt 0, utf8 "ab", left 2, utf8 "b" <> clearEOL <> utf8 "\b"
+        , end <> output 0 (utf8 "b") <> prompt 1 ]
+    , "ctrl and a letter" ~: testI i ["abc", utf8 "\ESC[97;5u", "x", "\n"]
+        [ prompt 0, utf8 "abc", left 3, utf8 "xabc" <> left 3
+        , end <> output 0 (utf8 "xabc") <> prompt 1 ]
+    , "alt and a letter" ~: testI i ["ab cd", utf8 "\ESC[98;3u", "x", "\n"]
+        [ prompt 0, utf8 "ab cd", left 2, utf8 "xcd" <> left 2
+        , end <> output 0 (utf8 "ab xcd") <> prompt 1 ]
+    , "the terminal's kill character" ~:
+        testI i ["abc", utf8 "\ESC[117;5u", "x", "\n"]
+        [ prompt 0, utf8 "abc", left 3 <> clearEOL, utf8 "x"
+        , end <> output 0 (utf8 "x") <> prompt 1 ]
+    , "ctrl-c interrupts" ~: testI i ["ab", utf8 "\ESC[99;5u"]
+        [ prompt 0, utf8 "ab"
+        , end <> output 0 (utf8 "Caught interrupted") <> prompt 1 ]
+    , "ctrl-z stops the program with the protocol off"
+        ~: testI i ["ab", utf8 "\ESC[122;5ucd", "e\n"]
+        [ prompt 0, utf8 "ab", popProtocol, B.empty ]
+    , "keypad enter" ~: testI i ["ab", utf8 "\ESC[57414u"]
+        [ prompt 0, utf8 "ab", end <> output 0 (utf8 "ab") <> prompt 1 ]
+    , "home" ~: testI i ["ab", utf8 "\ESC[H", "x", "\n"]
+        [ prompt 0, utf8 "ab", left 2, utf8 "xab" <> left 2
+        , end <> output 0 (utf8 "xab") <> prompt 1 ]
+    , "function keys are keys (here unbound)"
+        ~: testI i ["ab", utf8 "\ESC[13~", "c", "\n"]
+        [ prompt 0, utf8 "ab", bell, utf8 "c"
+        , end <> output 0 (utf8 "abc") <> prompt 1 ]
+    , "replies from the terminal are ignored"
+        ~: testI i ["ab", utf8 "\ESC[?1u\ESC[?62;22c", "c", "\n"]
+        [ prompt 0, utf8 "ab", B.empty, utf8 "c"
+        , end <> output 0 (utf8 "abc") <> prompt 1 ]
+    , "not used when .haskeline says not to"
+        ~: testI (withHome cwd "noprotocol" i) ["ab\n"]
+        [ smkx <> prompt' 0
+        , utf8 "ab" <> nl <> rmkx <> output 0 (utf8 "ab")
+            <> smkx <> prompt' 1 ]
+    ]
+  where
+    vi = withHome cwd "vi" i
+    left n = utf8 (T.pack ("\ESC[" ++ show (n :: Int) ++ "D"))
     bell = raw [7]

@@ -3,6 +3,7 @@
 module System.Console.Haskeline.Command.Editor (editInEditor) where
 
 import System.Console.Haskeline.Command
+import System.Console.Haskeline.KeyboardProtocol (withoutProtocol)
 import System.Console.Haskeline.LineState
 import System.Console.Haskeline.Monads
 
@@ -37,7 +38,7 @@ runEditorOn text = do
             hSetEncoding h utf8
             hPutStr h text
             hClose h
-            status <- withTerminalForEditor (runEditor path)
+            status <- withoutProtocol $ withTerminalForEditor (runEditor path)
             case status of
                 ExitSuccess -> Just . asLine <$> readUtf8 path
                 ExitFailure _ -> return Nothing

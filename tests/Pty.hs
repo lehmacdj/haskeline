@@ -35,13 +35,14 @@ runCommandInPty pause prog args env inputs = do
     -- After that, only use non-blocking reads.  Otherwise,
     -- we would hang the program in cases where the program has no output
     -- in between inputs.
-    firstOutput <- getOutput pause fd
+    firstOutput <- readOutput pause fd
     setFdOption fd NonBlockingRead True
+    restOfFirstOutput <- getOutput pause fd
     outputs <- mapM (inputOutput pause fd) inputs
     signalProcess killProcess pid
     _status <- getProcessStatus True False pid
     closeFd fd
-    return (firstOutput : outputs)
+    return ((firstOutput `B.append` restOfFirstOutput) : outputs)
 
 inputOutput :: Int -> Fd -> B.ByteString -> IO B.ByteString
 inputOutput pause fd input = do
@@ -56,8 +57,18 @@ putInput fd input =
             then threadDelay 1000 >> putInput fd input
             else return ()
 
+-- Read until no more output comes for the pause (vendored copy, see
+-- VENDORED.md: a program may write what one input makes in several writes).
 getOutput :: Int -> Fd -> IO B.ByteString
-getOutput pause fd = do
+getOutput pause fd = loop B.empty
+  where
+    loop acc = do
+        out <- readOutput pause fd
+        if B.null out then return acc else loop (acc `B.append` out)
+
+-- Pause, then read what output there is.
+readOutput :: Int -> Fd -> IO B.ByteString
+readOutput pause fd = do
             threadDelay pause
             allocaBytes (fromIntegral numBytes) $ \buf -> do
                 num <- fdReadNonBlocking fd buf numBytes

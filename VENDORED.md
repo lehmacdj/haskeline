@@ -21,9 +21,9 @@ excludes `cli/haskeline/**` from the ormolu fix tool.
   `System/Console/Haskeline/Command/Editor.hs`, bound in `Emacs.hs` and
   `Vi.hs`.
 - A line can have newlines in it: shift-return inserts one, in Emacs mode
-  and in Vi insert mode. A terminal sends shift-return as return unless it is
-  set up to tell them apart, so the patch reads the two encodings terminals
-  use: `ESC [ 13 ; 2 u` (CSI u, which the kitty keyboard protocol and most
+  and in Vi insert mode. A terminal sends shift-return as return unless it
+  uses the kitty keyboard protocol (below) or is set up to tell them apart,
+  so the patch reads the two encodings terminals use: `ESC [ 13 ; 2 u` (CSI u, which the kitty keyboard protocol and most
   "send this text for shift+enter" settings use) and `ESC [ 27 ; 2 ; 13 ~`
   (xterm's modifyOtherKeys). Meta-return (escape and return arriving
   together) also inserts a newline, for terminals that can send that but
@@ -32,6 +32,38 @@ excludes `cli/haskeline/**` from the ormolu fix tool.
   `keyseq: "\ESC[99~" shift-return` (`parseKey` used to read
   `shift-return` as return).
   `Command.hs` (`newlineCmds`), `Backend/Posix.hsc` (`ansiKeys`), `Key.hs`.
+- While a line is read (on a terminal that the terminfo backend draws on)
+  the terminal is asked to use the [kitty keyboard
+  protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/), its first
+  enhancement only ("disambiguate escape codes"): `ESC [ > 1 u` before and
+  `ESC [ < u` after. Terminals with the protocol (kitty, WezTerm, Ghostty,
+  foot, Alacritty, recent iTerm2 among them) then send shift-return as
+  `ESC [ 13 ; 2 u` with no setting up, and escape as a sequence of its own,
+  so that escape and a key that follows at once (fast typing in Vi mode)
+  are no longer read as meta and the key. Terminals without the protocol
+  ignore the request. `kittyKeyboardProtocol: False` in `~/.haskeline`
+  turns it off.
+  - The protocol's sequences (`CSI codepoint ; modifiers u`, and
+    `CSI 1 ; modifiers letter` and `CSI number ; modifiers ~` for keys such
+    as the arrows) are read as the keys a terminal without it would send:
+    ctrl and a letter is a control character, alt a meta key, the keypad
+    keys are the keys they stand for, and a control character is read
+    through the terminal's erase and kill characters and `~/.haskeline`'s
+    sequences as the typed one is. A key with super or hyper is ignored, as
+    is a control sequence that isn't a key (a reply from the terminal) or
+    one haskeline has no key for.
+  - With the protocol the terminal sends ctrl-c, ctrl-\ and ctrl-z as keys
+    rather than as signals, so haskeline raises the signal the terminal
+    would have (when its ISIG is set) and drops the rest of that input, as
+    the terminal does. The protocol is off while the program is stopped
+    (ctrl-z) or quits (ctrl-\), and while Ctrl-G's editor runs, so that the
+    shell and the editor get keys as they expect.
+  - A program that ends without haskeline's cleanup (killed, or crashed)
+    leaves the terminal using the protocol; return, tab, backspace and text
+    still work, and `printf '\e[<u'` (or `reset`) ends it.
+  `KeyboardProtocol.hs`, used in `Backend/Posix.hsc` (`lexKeys`,
+  `withKeyboardProtocol`, `raiseSignalOfKeys`), `Backend/Terminfo.hs`,
+  `Prefs.hs` and `Command/Editor.hs`.
 - The line is drawn with its newlines: a newline clears the rest of its row
   and the line goes on at the start of the next. The cursor is moved to
   where drawing the line up to it from the prompt would leave it, instead of
@@ -60,7 +92,9 @@ The patch also changes the test harness: each test sets `HOME` to a
 directory in `tests/homes/` (without it haskeline found the `~/.haskeline`
 of whoever ran the tests, and several upstream tests failed in Vi mode), and
 `RunTTY`'s `pause` sets how long to wait for output after each input (the
-Ctrl-G tests run a shell script as the editor).
+Ctrl-G tests run a shell script as the editor), and the output of an input
+is read until there is no more for that long (the program may write it in
+several writes).
 
 Two upstream tests fail on macOS, before the patch and after it: "tab
 completion" needs `tests/dummy-μασ/`, which the Hackage tarball does not

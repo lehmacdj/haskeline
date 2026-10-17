@@ -133,6 +133,7 @@ runTerminfoDraw h = do
             actions <- MaybeT $ return $ getCapability term getActions
             liftIO $ posixRunTerm h (posixLayouts h ++ [tinfoLayout term])
                 (terminfoKeys term)
+                True
                 (wrapKeypad (ehOut h) term)
                 (evalDraw term actions)
 

@@ -1,0 +1,3 @@
+#!/bin/sh
+# A stand-in for EDITOR that waits, as one does until it is closed.
+sleep 5

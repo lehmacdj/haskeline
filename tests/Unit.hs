@@ -491,6 +491,12 @@ editorTests cwd i = "ctrl-g opens the line in EDITOR" ~:
         ~: testI (editor "append-args --flag") ["one", ctrlG, "\n"]
         [ prompt 0, utf8 "one", aroundEditor <> utf8 " --flag"
         , end <> output 0 (utf8 "one --flag") <> prompt 1 ]
+    , "ctrl-c while the editor runs ends the editor and not the program"
+        ~: testI (editor "wait") ["one", ctrlG, raw [3], "\n"]
+        -- the terminal echoes ^C while the editor has it
+        [ prompt 0, utf8 "one", popProtocol
+        , utf8 "^C" <> pushProtocol <> bell
+        , end <> output 0 (utf8 "one") <> prompt 1 ]
     , "an editor that fails leaves the line and rings the bell"
         ~: testI (editor "fail") ["one", ctrlG, "\n"]
         [ prompt 0, utf8 "one", aroundEditor <> bell

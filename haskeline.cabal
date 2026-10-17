@@ -122,6 +122,7 @@ Library
         cpp-options: -DMINGW
     } else {
         Build-depends: unix>=2.0 && < 2.9
+        c-sources: cbits/h_signals.c
         Other-modules:
                 System.Console.Haskeline.Backend.Posix
                 System.Console.Haskeline.Backend.Posix.Encoder

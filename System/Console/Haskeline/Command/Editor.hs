@@ -16,6 +16,11 @@ import System.Environment (lookupEnv)
 import System.Exit (ExitCode(..))
 import System.IO
 import System.Process
+#ifndef MINGW
+import Foreign.C (CInt(..), CULong(..), throwErrnoIfMinus1_)
+import Foreign.Marshal.Alloc (allocaBytes)
+import Foreign.Ptr (Ptr)
+#endif
 
 -- | Open the line in the editor @EDITOR@ (@vim@ when it is not set) and make
 -- what the editor saved the line, with the cursor at its end. The newlines
@@ -53,16 +58,17 @@ readUtf8 path = withFile path ReadMode $ \h -> do
     contents <- hGetContents h
     length contents `seq` return contents
 
--- | Run @EDITOR@ on the file the way a shell runs @$EDITOR file@ (as git
--- does), so that the variable can hold arguments (@code --wait@). An
--- interrupt while the editor runs goes to the editor ('delegate_ctlc').
+-- | Run the editor on the file the way a shell runs @$EDITOR file@ (as git
+-- does), so that the variable can hold arguments (@code --wait@). Ctrl-c
+-- and ctrl-\ while the editor runs go to the editor only: an editor they
+-- end has failed.
 runEditor :: FilePath -> IO ExitCode
 runEditor path = do
     variable <- lookupEnv "EDITOR"
     let editor = case variable of
             Just e | not (all isSpace e) -> e
             _ -> "vim"
-    withCreateProcess (editorProcess editor) { delegate_ctlc = True }
+    holdingInterrupts $ withCreateProcess (editorProcess editor)
         $ \_ _ _ -> waitForProcess
   where
 #ifdef MINGW
@@ -88,3 +94,31 @@ withTerminalForEditor run = do
                 hSetBuffering stdin LineBuffering
                 hSetEcho stdin True
                 run)
+
+-- | Let ctrl-c and ctrl-\ (SIGINT and SIGQUIT) go by while the action
+-- runs, as a shell does while a program it started has the terminal. Not
+-- 'delegate_ctlc': that saves and restores the handlers through the GHC
+-- runtime's table, which doesn't know a handler that a program installed
+-- without it (as ge does), and so restores the wrong one; and it rethrows
+-- an interrupt that ended the editor as 'UserInterrupt'. See
+-- @cbits/h_signals.c@.
+holdingInterrupts :: IO a -> IO a
+#ifdef MINGW
+holdingInterrupts = id
+#else
+holdingInterrupts act = do
+    size <- c_held_signals_size
+    allocaBytes (fromIntegral size) $ \held -> E.bracket_
+        (throwErrnoIfMinus1_ "sigaction" (c_hold_interrupts held))
+        (throwErrnoIfMinus1_ "sigaction" (c_release_interrupts held))
+        act
+
+foreign import ccall unsafe "haskeline_held_signals_size"
+    c_held_signals_size :: IO CULong
+
+foreign import ccall unsafe "haskeline_hold_interrupts"
+    c_hold_interrupts :: Ptr () -> IO CInt
+
+foreign import ccall unsafe "haskeline_release_interrupts"
+    c_release_interrupts :: Ptr () -> IO CInt
+#endif

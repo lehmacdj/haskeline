@@ -20,6 +20,15 @@ the ormolu fix tool off.
   `$EDITOR file`. What the editor saves becomes the line, with the cursor
   at its end; trailing newlines are dropped and others stay. When
   the editor fails, the line stays and the bell rings.
+  While the editor runs, ctrl-c and ctrl-\ go to the editor only (an
+  editor they end has failed): the program lets SIGINT and SIGQUIT go by,
+  with `sigaction` (`cbits/h_signals.c`), restoring exactly the actions it
+  had; not with `process`'s `delegate_ctlc`, which restores the handler
+  that the GHC runtime knows, the wrong one for a program that installed
+  its own without it (as ge does), and rethrows an interrupt that ended the
+  editor. The editor's output isn't cleared from the screen: an editor that
+  leaves some there (`code --wait`'s message) leaves the line drawn wrong
+  until it is redrawn (ctrl-l).
   `System/Console/Haskeline/Command/Editor.hs`, bound in `Emacs.hs` and
   `Vi.hs`.
 - A line can have newlines in it: shift-return inserts one, in Emacs mode

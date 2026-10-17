@@ -14,7 +14,8 @@ module System.Console.Haskeline.KeyboardProtocol (
                         setProtocolSwitch,
                         withoutProtocol,
                         CsiKey(..),
-                        lexCsi
+                        lexCsi,
+                        endsInPartialCsi
                         ) where
 
 import Control.Exception (bracket_, mask_)
@@ -62,9 +63,17 @@ lexCsi ('\ESC':'[':cs)
     | (params, final:rest) <- span isParam cs
     , final >= '@' && final <= '~'
         = Just (maybe CsiIgnored CsiKey (csiKey params final), rest)
-  where
-    isParam c = isDigit c || c `elem` ";:<=>?"
 lexCsi _ = Nothing
+
+-- | Whether the input ends partway through a control sequence (@ESC [@ and
+-- parameters, without the final character), whose rest is still coming.
+endsInPartialCsi :: String -> Bool
+endsInPartialCsi cs = case break (== '\ESC') (reverse cs) of
+    (params, '\ESC':_) | ('[':rest) <- reverse params -> all isParam rest
+    _ -> False
+
+isParam :: Char -> Bool
+isParam c = isDigit c || c `elem` ";:<=>?"
 
 csiKey :: String -> Char -> Maybe Key
 csiKey params final

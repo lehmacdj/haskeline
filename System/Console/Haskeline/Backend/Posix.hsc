@@ -332,7 +332,10 @@ signalForeground fd sig = do
 -- Read at least one character of input, and more if immediately
 -- available.  In particular the characters making up a control sequence
 -- will all be available at once, so they can be processed together
--- (with Posix.lexKeys).
+-- (with Posix.lexKeys).  A control sequence (@ESC [@) can still arrive in
+-- two reads, over ssh say, and with the kitty keyboard protocol every key
+-- with ctrl or alt is one; when the input ends partway through one, wait a
+-- moment for the rest (added in this fork, see FORK.md).
 getBlockOfChars :: Handle -> IO String
 getBlockOfChars h = do
     c <- hGetChar h
@@ -340,11 +343,18 @@ getBlockOfChars h = do
   where
     loop cs = do
         isReady <- hReady h
-        if not isReady
+        more <- if isReady || not (endsInPartialCsi (reverse cs))
+            then return isReady
+            else hWaitForInput h partialCsiWaitMs
+        if not more
             then return $ reverse cs
             else do
                     c <- hGetChar h
                     loop (c:cs)
+
+-- | How long to wait for the rest of a control sequence, in milliseconds.
+partialCsiWaitMs :: Int
+partialCsiWaitMs = 100
 
 stdinTTYHandles, ttyHandles :: MaybeT IO Handles
 stdinTTYHandles = do

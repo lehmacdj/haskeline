@@ -70,7 +70,9 @@ the ormolu fix tool off.
     its place (ctrl and Cyrillic `с` is ctrl-c), as a terminal without the
     protocol sends them. A key with super or hyper is ignored, as is a
     control sequence that isn't a key (a reply from the terminal) or one
-    haskeline has no key for.
+    haskeline has no key for. When the input ends partway through a control
+    sequence (it can come in two reads, over ssh say), haskeline waits up
+    to 100ms for the rest.
   - With the protocol the terminal sends ctrl-c, ctrl-\ and ctrl-z as keys
     rather than as signals, so haskeline sends the signal the terminal
     would have (when its ISIG is set) to the terminal's foreground process

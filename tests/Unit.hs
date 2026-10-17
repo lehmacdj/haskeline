@@ -579,6 +579,10 @@ keyboardProtocolTests cwd i = "kitty keyboard protocol" ~:
         ~: testI i ["abc", utf8 "\ESC[117;5u", utf8 "\ESC[45:95;6u", "\n"]
         [ prompt 0, utf8 "abc", left 3 <> clearEOL, utf8 "abc"
         , end <> output 0 (utf8 "abc") <> prompt 1 ]
+    , "a control sequence split across two reads is one key"
+        ~: testI i ["abc", utf8 "\ESC[97;", utf8 "5u", "x", "\n"]
+        [ prompt 0, utf8 "abc", B.empty, left 3, utf8 "xabc" <> left 3
+        , end <> output 0 (utf8 "xabc") <> prompt 1 ]
     , "ctrl-z stops the program with the protocol off"
         ~: testI i ["ab", utf8 "\ESC[122;5ucd", "e\n"]
         [ prompt 0, utf8 "ab", popProtocol, B.empty ]

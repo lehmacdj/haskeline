@@ -59,7 +59,7 @@ controlActions = choiceCmd
             , ctrlChar 'b' +> change goLeft
             , ctrlChar 'f' +> change goRight
             , ctrlChar 'l' +> clearScreenCmd
-            , ctrlChar 'g' +> editInEditor
+            , ctrlChar 'g' +> saveForUndo >|> editInEditor
             , metaChar 'f' +> change wordRight
             , metaChar 'b' +> change wordLeft
             , ctrlKey (simpleKey LeftKey) +> change wordLeft

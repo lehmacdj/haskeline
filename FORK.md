@@ -29,6 +29,7 @@ the ormolu fix tool off.
   editor. The editor's output isn't cleared from the screen: an editor that
   leaves some there (`code --wait`'s message) leaves the line drawn wrong
   until it is redrawn (ctrl-l).
+  Undo goes back to the line before Ctrl-G.
   `System/Console/Haskeline/Command/Editor.hs`, bound in `Emacs.hs` and
   `Vi.hs`.
 - A line can have newlines in it: shift-return inserts one, in Emacs mode

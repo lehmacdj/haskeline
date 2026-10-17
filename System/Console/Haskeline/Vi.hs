@@ -60,7 +60,7 @@ simpleInsertions = choiceCmd
                    , simpleKey End +> change moveToEnd
                    , insertChars
                    , ctrlChar 'l' +> clearScreenCmd
-                   , ctrlChar 'g' +> editInEditor
+                   , ctrlChar 'g' +> saveForUndo >|> editInEditor
                    , simpleKey UpKey +> lineUpOr historyBack
                    , simpleKey DownKey +> lineDownOr historyForward
                    , newlineCmds
@@ -123,7 +123,7 @@ simpleCmdActions = choiceCmd [
                     , simpleChar 'R'   +> replaceLoop
                     , simpleChar 'D' +> noArg >|> killAndStoreCmd (SimpleMove moveToEnd)
                     , ctrlChar 'l' +> clearScreenCmd
-                    , ctrlChar 'g' +> editInEditor
+                    , ctrlChar 'g' +> saveForUndo >|> editInEditor
                     , simpleChar 'u' +> commandUndo
                     , ctrlChar 'r' +> commandRedo
                     -- vi-mode quirk: history is put at the start of the line.

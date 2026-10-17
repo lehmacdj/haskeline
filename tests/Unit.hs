@@ -369,6 +369,10 @@ shiftReturn = utf8 "\ESC[13;2u"
 newline :: B.ByteString
 newline = clearEOL <> cr <> nl <> utf8 "  "
 
+-- To the start of the row above.
+up1 :: B.ByteString
+up1 = cr <> utf8 "\ESC[A"
+
 clearEOL :: B.ByteString
 clearEOL = utf8 "\ESC[K"
 
@@ -448,7 +452,6 @@ multilineTests cwd i = "multiline" ~:
     ]
   where
     vi = withHome cwd "vi" i
-    up1 = cr <> utf8 "\ESC[A"
 
 multilineHistoryTests :: Invocation -> Test
 multilineHistoryTests i = "multiline history" ~:
@@ -503,6 +506,12 @@ editorTests cwd i = "ctrl-g opens the line in EDITOR" ~:
             ["one", ctrlG, "\n"]
         [ prompt 0, utf8 "one", aroundEditor <> utf8 " --visual"
         , end <> output 0 (utf8 "one --visual") <> prompt 1 ]
+    , "undo goes back to the line before"
+        ~: testI (editor "append-line") ["one", ctrlG, raw [31], "\n"]
+        [ prompt 0, utf8 "one", aroundEditor <> newline <> utf8 "added"
+        , up1 <> utf8 "\ESC[5C" <> clearEOL <> nl <> clearEOL <> up1
+            <> utf8 "\ESC[5C"
+        , end <> output 0 (utf8 "one") <> prompt 1 ]
     , "an editor that fails leaves the line and rings the bell"
         ~: testI (editor "fail") ["one", ctrlG, "\n"]
         [ prompt 0, utf8 "one", aroundEditor <> bell

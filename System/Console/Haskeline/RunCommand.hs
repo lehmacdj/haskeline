@@ -6,6 +6,9 @@ import System.Console.Haskeline.LineState
 import System.Console.Haskeline.Monads
 import System.Console.Haskeline.Prefs
 import System.Console.Haskeline.Key
+import System.Console.Haskeline.Backend.WCWidth (gsWidth)
+
+import Data.List (isPrefixOf)
 
 import Control.Exception (SomeException)
 import Control.Monad
@@ -26,7 +29,7 @@ runCommandLoop' :: forall m n s a . (Term n, CommandMonad n,
         => (forall b . m b -> n b) -> TermOps -> Prefix -> s -> KeyCommand m s a -> n Event
         -> n a
 runCommandLoop' liftE tops prefix initState cmds getEvent = do
-    let s = lineChars prefix initState
+    let s = indentLines prefix (lineChars prefix initState)
     drawLine s
     readMoreKeys s (fmap (liftM (\x -> (x,[])) . ($ initState)) cmds)
   where
@@ -62,6 +65,23 @@ runCommandLoop' liftE tops prefix initState cmds getEvent = do
                                     moveToNextLine s
                                     return x
 
+-- | Indent the lines after a newline in the text by the width of the
+-- prompt's last line (added to the vendored copy, see VENDORED.md), so that
+-- the lines of the text start in the same column. Only how the line is drawn
+-- changes; the spaces aren't part of the text.
+indentLines :: Prefix -> LineChars -> LineChars
+indentLines prefix (xs, ys) = (prompt ++ indent text, indent ys)
+  where
+    -- a mode with a prompt of its own (an argument, a search) draws that
+    -- instead of the prefix
+    (prompt, text)
+        | prefix `isPrefixOf` xs = splitAt (length prefix) xs
+        | otherwise = ([], xs)
+    promptLastLine = reverse . takeWhile (not . isNewline) . reverse $ prefix
+    pad = stringToGraphemes (replicate (gsWidth promptLastLine) ' ')
+    indent = concatMap (\g -> if isNewline g then g : pad else [g])
+    isNewline g = baseChar g == '\n'
+
 printPreservingLineChars :: Term m => LineChars -> String -> m ()
 printPreservingLineChars s str =  do
     clearLine s
@@ -79,7 +99,7 @@ drawReposition liftE tops s = do
 drawEffect :: (Term m, MonadReader Prefs m)
     => Prefix -> LineChars -> Effect -> m LineChars
 drawEffect prefix s (LineChange ch) = do
-    let t = ch prefix
+    let t = indentLines prefix (ch prefix)
     drawLineDiff s t
     return t
 drawEffect _ s ClearScreen = do

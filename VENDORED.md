@@ -65,10 +65,13 @@ excludes `cli/haskeline/**` from the ormolu fix tool.
   `withKeyboardProtocol`, `raiseSignalOfKeys`), `Backend/Terminfo.hs`,
   `Prefs.hs` and `Command/Editor.hs`.
 - The line is drawn with its newlines: a newline clears the rest of its row
-  and the line goes on at the start of the next. The cursor is moved to
-  where drawing the line up to it from the prompt would leave it, instead of
-  by a number of cells, which a newline makes wrong.
-  `Backend/Terminfo.hs`. The dumb terminal backend (`TERM=dumb`) is not
+  and the line goes on at the next, indented by the width of the prompt's
+  last line so that the lines of the text start in the same column (the
+  spaces are only drawn, they aren't in the text; a row that wraps isn't
+  indented). The cursor is moved to where drawing the line up to it from
+  the prompt would leave it, instead of by a number of cells, which a
+  newline makes wrong. `Backend/Terminfo.hs`, `RunCommand.hs`
+  (`indentLines`). The dumb terminal backend (`TERM=dumb`) is not
   changed and draws a newline as it is.
 - Up and down (and ctrl-p and ctrl-n in Emacs mode, j and k in Vi command
   mode) move to the line above or below, keeping the column, and go through

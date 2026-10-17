@@ -359,9 +359,9 @@ shiftReturn :: B.ByteString
 shiftReturn = utf8 "\ESC[13;2u"
 
 -- What drawing a newline in the line writes: the rest of the row is
--- cleared and the cursor goes to the start of the next one.
+-- cleared and the next line is indented by the width of the prompt ("0:").
 newline :: B.ByteString
-newline = clearEOL <> cr <> nl
+newline = clearEOL <> cr <> nl <> utf8 "  "
 
 clearEOL :: B.ByteString
 clearEOL = utf8 "\ESC[K"
@@ -375,6 +375,11 @@ multilineTests cwd i = "multiline" ~:
         ["a", shiftReturn, "b", "\n"]
         [ prompt 0, utf8 "a", newline, utf8 "b"
         , end <> output 0 (utf8 "a\nb") <> prompt 1 ]
+    , "the next lines are indented by the width of the prompt" ~: testI i
+        (replicate 10 "\n" ++ ["a", shiftReturn, "b"])
+        ( prompt 0
+        : [end <> output k "" <> prompt (k + 1) | k <- [0 .. 9]]
+        ++ [utf8 "a", clearEOL <> cr <> nl <> utf8 "   ", utf8 "b"] )
     , "shift-return (modifyOtherKeys)" ~: testI i
         ["a", utf8 "\ESC[27;2;13~", "b", "\n"]
         [ prompt 0, utf8 "a", newline, utf8 "b"
@@ -410,14 +415,14 @@ multilineTests cwd i = "multiline" ~:
         ["abc", shiftReturn, "d", "\ESC[A", "\ESC[B"]
         [ prompt 0, utf8 "abc", newline, utf8 "d"
         , up1 <> utf8 "\ESC[3C"
-        , cr <> nl <> utf8 "\ESC[C" ]
+        , cr <> nl <> utf8 "\ESC[3C" ]
     , "vi: j and k move between lines, onto the last character"
         ~: testI vi
         ["abc", shiftReturn, "de", "\ESC", "k", "j"]
         [ prompt 0, utf8 "abc", newline, utf8 "de"
         , utf8 "\b"
         , up1 <> utf8 "\ESC[3C"
-        , cr <> nl <> utf8 "\ESC[C" ]
+        , cr <> nl <> utf8 "\ESC[3C" ]
     , "vi: k on a shorter line goes on its last character" ~: testI vi
         ["a", shiftReturn, "bcd", "\ESC", "k"]
         [ prompt 0, utf8 "a", newline, utf8 "bcd"

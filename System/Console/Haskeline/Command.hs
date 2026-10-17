@@ -26,7 +26,9 @@ module System.Console.Haskeline.Command(
                         keyChoiceCmd,
                         keyChoiceCmdM,
                         doBefore,
-                        newlineCmds
+                        newlineCmds,
+                        shiftReturnCmd,
+                        metaReturns
                         ) where
 
 import Data.Char(isPrint)
@@ -171,9 +173,16 @@ doBefore cmd = fmap (cmd >|>)
 -- FORK.md).  A terminal sends meta-return as escape and return together;
 -- typed one after the other they stay two keys.
 newlineCmds :: Monad m => KeyCommand m InsertMode InsertMode
-newlineCmds = choiceCmd [k +> change (insertChar '\n') | k <- keys]
-  where
-    keys = [ Key noModifier {hasShift = True} (KeyChar '\n')
-           , metaChar '\n'
-           , metaChar '\r'
-           ]
+newlineCmds = choiceCmd
+    [k +> change (insertChar '\n') | k <- shiftReturn : metaReturns]
+
+-- | Shift-return alone; Vi mode reads meta-return as the escape and return
+-- that a terminal sends it as.
+shiftReturnCmd :: Monad m => KeyCommand m InsertMode InsertMode
+shiftReturnCmd = shiftReturn +> change (insertChar '\n')
+
+shiftReturn :: Key
+shiftReturn = Key noModifier {hasShift = True} (KeyChar '\n')
+
+metaReturns :: [Key]
+metaReturns = [metaChar '\n', metaChar '\r']

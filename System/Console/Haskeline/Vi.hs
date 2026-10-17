@@ -45,6 +45,10 @@ viKeyCommands = choiceCmd [
                 , simpleInsertions >+> viCommands
                 , simpleChar '\ESC' +> change enterCommandMode
                     >|> viCommandActions
+                -- escape and return typed quickly arrive together, read as
+                -- meta-return (this fork, see FORK.md)
+                , choiceCmd [k +> change enterCommandMode >|> finish
+                            | k <- metaReturns]
                 ]
 
 viCommands :: InputCmd InsertMode (Maybe String)
@@ -63,7 +67,7 @@ simpleInsertions = choiceCmd
                    , ctrlChar 'g' +> saveForUndo >|> editInEditor
                    , simpleKey UpKey +> lineUpOr historyBack
                    , simpleKey DownKey +> lineDownOr historyForward
-                   , newlineCmds
+                   , shiftReturnCmd
                    , simpleKey SearchReverse +> searchForPrefix Reverse
                    , simpleKey SearchForward +> searchForPrefix Forward
                    , searchHistory

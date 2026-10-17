@@ -38,9 +38,10 @@ the ormolu fix tool off.
   so the fork reads the two encodings terminals use: `ESC [ 13 ; 2 u`
   (CSI u, which the kitty keyboard protocol and most
   "send this text for shift+enter" settings use) and `ESC [ 27 ; 2 ; 13 ~`
-  (xterm's modifyOtherKeys). Meta-return (escape and return arriving
-  together) also inserts a newline, for terminals that can send that but
-  nothing else. A terminal that sends something else for shift-return can
+  (xterm's modifyOtherKeys). In Emacs mode meta-return (escape and return
+  arriving together) also inserts a newline, for terminals that can send
+  that but nothing else; in Vi insert mode it is escape and return, typed
+  quickly, and leaves insert mode and accepts the line. A terminal that sends something else for shift-return can
   have it read in `~/.haskeline`, for example
   `keyseq: "\ESC[99~" shift-return` (`parseKey` used to read
   `shift-return` as return).

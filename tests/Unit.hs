@@ -438,6 +438,11 @@ multilineTests cwd i = "multiline" ~:
         [ prompt 0, utf8 "a", newline, utf8 "bcd"
         , utf8 "\b"
         , up1 <> utf8 "\ESC[2C" ]
+    , "vi: escape and return arriving together leave insert mode and accept"
+        ~: testI (withHome cwd "vi-noprotocol" i) ["abc", "\ESC\r"]
+        [ smkx <> prompt' 0, utf8 "abc"
+        , utf8 "\b" <> nl <> rmkx <> output 0 (utf8 "abc") <> smkx
+            <> prompt' 1 ]
     , "vi: k on the first line goes back in history" ~: test $ do
         B.writeFile "myhist" B.empty
         assertInvocation vi

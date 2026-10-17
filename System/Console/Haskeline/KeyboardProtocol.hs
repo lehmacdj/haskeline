@@ -250,6 +250,10 @@ modifyKey bits (Key _ base)
         | ctrl, Just c' <- controlFor (upperIfShift c)
             = Key noModifier {hasMeta = alt} (KeyChar c')
         | c == '\ESC' = Key noModifier {hasMeta = alt} (KeyChar c)
+        -- alt and return is read as shift and return (a newline), not as
+        -- meta-return, which Vi mode reads as escape and return typed
+        -- quickly, as a terminal without the protocol sends them
+        | c == '\n' && alt = Key noModifier {hasShift = True} (KeyChar c)
         -- shift and return stays apart from return, as the protocol is
         -- there for
         | c `elem` "\n\t" = Key mods {hasControl = False} (KeyChar c)

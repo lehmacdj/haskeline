@@ -42,7 +42,8 @@ the ormolu fix tool off.
   (xterm's modifyOtherKeys). In Emacs mode meta-return (escape and return
   arriving together) also inserts a newline, for terminals that can send
   that but nothing else; in Vi insert mode it is escape and return, typed
-  quickly, and leaves insert mode and accepts the line. A terminal that sends something else for shift-return can
+  quickly, and leaves insert mode and accepts the line (with the protocol,
+  alt and return is a newline in both modes: see below). A terminal that sends something else for shift-return can
   have it read in `~/.haskeline`, for example
   `keyseq: "\ESC[99~" shift-return` (`parseKey` used to read
   `shift-return` as return).
@@ -69,7 +70,10 @@ the ormolu fix tool off.
     `,` is meta-`<`, ctrl and shift and `-` is ctrl-`_`), and a key with
     ctrl or alt on a layout other than the US one as the US layout's key in
     its place (ctrl and Cyrillic `с` is ctrl-c, alt and shift and `б` is
-    meta-`<`), as a terminal without the protocol sends them. A key with super or hyper is ignored, as is a
+    meta-`<`), as a terminal without the protocol sends them. Alt and
+    return is read as shift and return, a newline: in Vi insert mode
+    meta-return is escape and return typed quickly, which can't come from
+    a terminal that uses the protocol. A key with super or hyper is ignored, as is a
     control sequence that isn't a key (a reply from the terminal) or one
     haskeline has no key for. When the input ends partway through a control
     sequence (it can come in two reads, over ssh say), haskeline waits up

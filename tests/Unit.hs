@@ -664,6 +664,10 @@ keyboardProtocolTests cwd i = "kitty keyboard protocol" ~:
                 [ prompt 0, utf8 "one", end <> output 0 (utf8 "one") <> prompt 1
                 , utf8 "two", end <> output 1 (utf8 "two") <> prompt 2
                 , utf8 "one" ]
+    , "vi: alt and return inserts a newline"
+        ~: testI vi ["a", utf8 "\ESC[13;3u", "b", "\n"]
+        [ prompt 0, utf8 "a", newline, utf8 "b"
+        , end <> output 0 (utf8 "a\nb") <> prompt 1 ]
     , "without the alternate keys, ctrl and shift and - is a key of its own"
         ~: testI i ["ab", utf8 "\ESC[45;6u", "\n"]
         [ prompt 0, utf8 "ab", bell

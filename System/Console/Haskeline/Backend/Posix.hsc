@@ -330,10 +330,11 @@ raiseSignalOfKeys h ks
 -- well. Only to this program when the group isn't known.
 signalForeground :: Fd -> Signal -> IO ()
 signalForeground fd sig = do
-    group <- tryIOError (getTerminalProcessGroupID fd)
-    case group of
-        Right g | g > 0 -> signalProcessGroup sig g
-        _ -> raiseSignal sig
+    sent <- tryIOError $ do
+        group <- getTerminalProcessGroupID fd
+        if group > 0 then signalProcessGroup sig group
+            else ioError (userError "no foreground process group")
+    either (const (raiseSignal sig)) return sent
 
 -- Read at least one character of input, and more if immediately
 -- available.  In particular the characters making up a control sequence

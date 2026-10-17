@@ -299,7 +299,7 @@ end :: B.ByteString
 end = nl <> popProtocol <> rmkx
 
 pushProtocol, popProtocol :: B.ByteString
-pushProtocol = utf8 "\ESC[>1u"
+pushProtocol = utf8 "\ESC[>5u"
 popProtocol = utf8 "\ESC[<u"
 
 cr :: B.ByteString
@@ -564,6 +564,14 @@ keyboardProtocolTests cwd i = "kitty keyboard protocol" ~:
     , "ctrl-c interrupts" ~: testI i ["ab", utf8 "\ESC[99;5u"]
         [ prompt 0, utf8 "ab"
         , end <> output 0 (utf8 "Caught interrupted") <> prompt 1 ]
+    , "ctrl and a key of another layout is the US layout's key (ctrl-c)"
+        ~: testI i ["ab", utf8 "\ESC[1089::99;5u"]
+        [ prompt 0, utf8 "ab"
+        , end <> output 0 (utf8 "Caught interrupted") <> prompt 1 ]
+    , "ctrl and a shifted key is the shifted key (ctrl-_ undoes)"
+        ~: testI i ["abc", utf8 "\ESC[117;5u", utf8 "\ESC[45:95;6u", "\n"]
+        [ prompt 0, utf8 "abc", left 3 <> clearEOL, utf8 "abc"
+        , end <> output 0 (utf8 "abc") <> prompt 1 ]
     , "ctrl-z stops the program with the protocol off"
         ~: testI i ["ab", utf8 "\ESC[122;5ucd", "e\n"]
         [ prompt 0, utf8 "ab", popProtocol, B.empty ]

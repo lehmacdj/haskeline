@@ -48,9 +48,9 @@ the ormolu fix tool off.
   `Command.hs` (`newlineCmds`), `Backend/Posix.hsc` (`ansiKeys`), `Key.hs`.
 - While a line is read (on a terminal that the terminfo backend draws on)
   the terminal is asked to use the [kitty keyboard
-  protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/), its first
-  enhancement only ("disambiguate escape codes"): `ESC [ > 1 u` before and
-  `ESC [ < u` after. Terminals with the protocol (kitty, WezTerm, Ghostty,
+  protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/), with the
+  enhancements "disambiguate escape codes" and "report alternate keys":
+  `ESC [ > 5 u` before and `ESC [ < u` after. Terminals with the protocol (kitty, WezTerm, Ghostty,
   foot, Alacritty, recent iTerm2 among them) then send shift-return as
   `ESC [ 13 ; 2 u` with no setting up, and escape as a sequence of its own,
   so that escape and a key that follows at once (fast typing in Vi mode)
@@ -63,9 +63,14 @@ the ormolu fix tool off.
     ctrl and a letter is a control character, alt a meta key, the keypad
     keys are the keys they stand for, and a control character is read
     through the terminal's erase and kill characters and `~/.haskeline`'s
-    sequences as the typed one is. A key with super or hyper is ignored, as
-    is a control sequence that isn't a key (a reply from the terminal) or
-    one haskeline has no key for.
+    sequences as the typed one is. A key with shift is read as the
+    character shift makes of it (from the alternate keys: alt and shift and
+    `,` is meta-`<`, ctrl and shift and `-` is ctrl-`_`), and a key with
+    ctrl or alt on a layout other than the US one as the US layout's key in
+    its place (ctrl and Cyrillic `с` is ctrl-c), as a terminal without the
+    protocol sends them. A key with super or hyper is ignored, as is a
+    control sequence that isn't a key (a reply from the terminal) or one
+    haskeline has no key for.
   - With the protocol the terminal sends ctrl-c, ctrl-\ and ctrl-z as keys
     rather than as signals, so haskeline raises the signal the terminal
     would have (when its ISIG is set) and drops the rest of that input, as

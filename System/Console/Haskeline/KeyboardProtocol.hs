@@ -3,8 +3,10 @@
 -- that it otherwise can't tell apart (escape and alt-key, return and
 -- shift-return) as escape sequences of their own, which are read here.
 --
--- <https://sw.kovidgoyal.net/kitty/keyboard-protocol/>; only the first
--- enhancement ("disambiguate escape codes") is asked for. A terminal without
+-- <https://sw.kovidgoyal.net/kitty/keyboard-protocol/>; the enhancements
+-- asked for are "disambiguate escape codes" and "report alternate keys" (so
+-- that a key with ctrl or alt is read as the character that shift makes of
+-- it, or as the key of the US layout on another layout). A terminal without
 -- the protocol ignores the request and sends keys as before.
 module System.Console.Haskeline.KeyboardProtocol (
                         pushProtocol,
@@ -16,7 +18,7 @@ module System.Console.Haskeline.KeyboardProtocol (
                         ) where
 
 import Control.Exception (bracket_, mask_)
-import Data.Bits ((.&.), testBit)
+import Data.Bits ((.&.), clearBit, testBit)
 import Data.Char (chr, isDigit, isLetter, toUpper)
 import Data.IORef
 import System.IO.Unsafe (unsafePerformIO)
@@ -25,7 +27,7 @@ import System.Console.Haskeline.Key
 
 -- | Have the terminal push, and pop, the protocol's enhancement flags.
 pushProtocol, popProtocol :: String
-pushProtocol = "\ESC[>1u"
+pushProtocol = "\ESC[>5u"
 popProtocol = "\ESC[<u"
 
 -- | How to turn the protocol off and on again while it is on. The terminal
@@ -69,19 +71,49 @@ csiKey params final
     | any (`elem` "<=>?") params = Nothing -- a reply from the terminal
     | otherwise = do
         base <- case final of
-            'u' -> codepointKey (field 0 0)
+            'u' -> codepointKey codepoint
             '~' -> tildeKey (field 0 0)
             'Z' -> Just (Key shiftOnly (KeyChar '\t')) -- shift-tab, legacy
             _ -> lookup final letterKeys
-        modifyKey (field 1 1 - 1) base
+        modifyKey bits base
   where
     fields = splitOn ';' params
+    -- the key's codepoint, and the alternate keys of the key: the
+    -- character shift makes of it and the key of the US layout
+    -- (@codepoint:shifted:base@, each but the first possibly left out)
+    (codepoint, bits) = alternateKey (field 1 1 - 1) $ case fields of
+        f:_ -> map number (splitOn ':' f)
+        [] -> []
+    number s = case s of
+        ds@(_:_) | all isDigit ds -> Just (read ds :: Int)
+        _ -> Nothing
     -- the first number of a field (the others are alternate keys or event
     -- types, which aren't asked for)
     field i def = case drop i fields of
         f:_ | ds@(_:_) <- takeWhile isDigit f -> read ds
         _ -> def :: Int
     shiftOnly = noModifier {hasShift = True}
+
+-- | The key to read and its modifiers, from the codepoint and alternate
+-- keys of a key and its modifiers. With ctrl or alt, a key of a layout
+-- other than the US one (its codepoint isn't ASCII) is read as the US
+-- layout's key in its place, as a terminal without the protocol does, so
+-- that ctrl-c and the other control keys work on any layout. With shift,
+-- the key is read as the character shift makes of it, without shift (so
+-- that alt and shift and @,@ is meta-@<@).
+alternateKey :: Int -> [Maybe Int] -> (Int, Int)
+alternateKey bits alternates = case alternates of
+    Just cp : rest
+        | ctrlOrAlt, cp >= 128, Just b <- at 1 rest -> (b, bits)
+        | shift, Just s <- at 0 rest -> (s, clearBit bits 0)
+        | otherwise -> (cp, bits)
+    _ -> (0, bits)
+  where
+    shift = testBit bits 0
+    ctrlOrAlt = testBit bits 1 || testBit bits 2 || testBit bits 5
+    at i xs = case drop i xs of
+        x:_ -> x
+        [] -> Nothing
 
 splitOn :: Char -> String -> [String]
 splitOn c s = case break (== c) s of

@@ -72,11 +72,13 @@ the ormolu fix tool off.
     control sequence that isn't a key (a reply from the terminal) or one
     haskeline has no key for.
   - With the protocol the terminal sends ctrl-c, ctrl-\ and ctrl-z as keys
-    rather than as signals, so haskeline raises the signal the terminal
-    would have (when its ISIG is set) and drops the rest of that input, as
-    the terminal does. The protocol is off while the program is stopped
-    (ctrl-z) or quits (ctrl-\), and while Ctrl-G's editor runs, so that the
-    shell and the editor get keys as they expect.
+    rather than as signals, so haskeline sends the signal the terminal
+    would have (when its ISIG is set) to the terminal's foreground process
+    group, as the terminal does (so to `tee` in `ge | tee log` too), and
+    drops the rest of that input. The protocol is off while the signal is
+    sent, and so while the program is stopped (ctrl-z) or if it ends of
+    it, and while Ctrl-G's editor runs, so that the shell and the editor
+    get keys as they expect.
   - A program that ends without haskeline's cleanup (killed, or crashed)
     leaves the terminal using the protocol; return, tab, backspace and text
     still work, and `printf '\e[<u'` (or `reset`) ends it.

@@ -312,14 +312,22 @@ raiseSignalOfKeys h ks
             signalOf k = plainControl k >>= flip lookup signals
         case mapMaybe signalOf ks of
             sig:_ | terminalMode KeyboardInterrupts attrs -> do
-                if sig == keyboardSignal
-                    then raiseSignal sig
-                    else withoutProtocol (raiseSignal sig)
+                withoutProtocol (signalForeground (Fd fd) sig)
                 return Signalled
             _ -> return (Keys ks)
   where
     plainControl (Key m (KeyChar c)) | m == noModifier && isControl c = Just c
     plainControl _ = Nothing
+
+-- | Send the signal to the terminal's foreground process group, as the
+-- terminal does: to the other programs of a pipeline (@ge | tee log@) as
+-- well. Only to this program when the group isn't known.
+signalForeground :: Fd -> Signal -> IO ()
+signalForeground fd sig = do
+    group <- tryIOError (getTerminalProcessGroupID fd)
+    case group of
+        Right g | g > 0 -> signalProcessGroup sig g
+        _ -> raiseSignal sig
 
 -- Read at least one character of input, and more if immediately
 -- available.  In particular the characters making up a control sequence

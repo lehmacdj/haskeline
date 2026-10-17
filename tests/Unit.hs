@@ -543,6 +543,11 @@ editorTests cwd i = "ctrl-g opens the line in EDITOR" ~:
     -- the editor runs with the terminal's keyboard mode as it was
     aroundEditor = popProtocol <> pushProtocol
 
+-- The protocol is off while a signal is raised, as when the terminal raises
+-- it.
+aroundSignal :: B.ByteString
+aroundSignal = popProtocol <> pushProtocol
+
 -- The terminal sends these keys this way once haskeline has it use the kitty
 -- keyboard protocol; here they are sent as a terminal with it would.
 keyboardProtocolTests :: FilePath -> Invocation -> Test
@@ -563,11 +568,13 @@ keyboardProtocolTests cwd i = "kitty keyboard protocol" ~:
         , end <> output 0 (utf8 "x") <> prompt 1 ]
     , "ctrl-c interrupts" ~: testI i ["ab", utf8 "\ESC[99;5u"]
         [ prompt 0, utf8 "ab"
-        , end <> output 0 (utf8 "Caught interrupted") <> prompt 1 ]
+        , aroundSignal <> end <> output 0 (utf8 "Caught interrupted")
+            <> prompt 1 ]
     , "ctrl and a key of another layout is the US layout's key (ctrl-c)"
         ~: testI i ["ab", utf8 "\ESC[1089::99;5u"]
         [ prompt 0, utf8 "ab"
-        , end <> output 0 (utf8 "Caught interrupted") <> prompt 1 ]
+        , aroundSignal <> end <> output 0 (utf8 "Caught interrupted")
+            <> prompt 1 ]
     , "ctrl and a shifted key is the shifted key (ctrl-_ undoes)"
         ~: testI i ["abc", utf8 "\ESC[117;5u", utf8 "\ESC[45:95;6u", "\n"]
         [ prompt 0, utf8 "abc", left 3 <> clearEOL, utf8 "abc"
